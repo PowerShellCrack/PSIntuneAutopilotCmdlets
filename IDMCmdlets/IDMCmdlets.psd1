@@ -12,7 +12,7 @@
     RootModule = 'IDMCmdlets.psm1'
 
     # Version number of this module.
-    ModuleVersion = '1.0.0.0'
+    ModuleVersion = '1.0.0.3'
 
     # ID used to uniquely identify this module
     GUID = 'a8428a2b-be4c-43c7-b44c-ea20d0d04490'
@@ -79,7 +79,6 @@
         'Get-IDMDeviceCategory'
         'Set-IDMDeviceCategory'
         'Invoke-IDMDeviceAction'
-        'Set-IDMManagedDevice'
         'Remove-IDMDeviceRecords'
         'Get-IDMIntuneAssignments'
         'Set-IDMResourceFriendlyName'
@@ -113,21 +112,19 @@
         PSData = @{
 
             # Tags applied to this module. These help with module discovery in online galleries.
-            # Tags = @()
+            Tags = @('Intune','Devices','MDM','Graph','Autopilot')
 
             # A URL to the license for this module.
-            LicenseUri = 'https://raw.githubusercontent.com/PSIntuneAutopilotCmdlets/IDMCmdlets/master/LICENSE'
+            LicenseUri = 'https://raw.githubusercontent.com/PowerShellCrack/PSIntuneAutopilotCmdlets/main/LICENSE'
 
             # A URL to the main website for this project.
-            ProjectUri = 'https://github.com/PSIntuneAutopilotCmdlets/IDMCmdlets'
+            ProjectUri = 'https://github.com/PowerShellCrack/PSIntuneAutopilotCmdlets'
 
             # A URL to an icon representing this module.
             # IconUri = ''
 
             # ReleaseNotes of this module
-            ReleaseNotes = '
-
-            '
+            ReleaseNotes = 'https://github.com/PowerShellCrack/PSIntuneAutopilotCmdlets/blob/main/CHANGELOG.md'
 
             # External dependent modules of this module
             # ExternalModuleDependencies = ''
@@ -137,7 +134,7 @@
      } # End of PrivateData hashtable
 
     # HelpInfo URI of this module
-    # HelpInfoURI = ''
+    HelpInfoURI = 'https://github.com/PowerShellCrack/PSIntuneAutopilotCmdlets/blob/main/README.MD'
 
     # Default prefix for commands exported from this module. Override the default prefix using Import-Module -Prefix.
     # DefaultCommandPrefix = ''
