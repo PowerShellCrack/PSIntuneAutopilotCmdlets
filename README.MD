@@ -48,7 +48,7 @@ Import-Module IDMCmdlets
 
 $Global:AuthToken = Connect-IDMGraphApp -Tenant '0ad2375d-0906-41d5-9563-1994db1a70f9' -AppId 'f96b2862-9dcd-468e-8935-a86e575f814a' -AppSecret "j0H8Q~X7YBLFYD6YoUBL2gPLE37yg5k5WATmGcgB"
 
-$Global:Authtoken = Get-IDMGraphAuthToken -User $MSgraph.UPN
+$Global:Authtoken = Get-IDMGraphAuthToken -User <globaladmin>@<azuretenant>.onmicrosoft.com
 
 Get-IDMDevice -Platform Windows
 
