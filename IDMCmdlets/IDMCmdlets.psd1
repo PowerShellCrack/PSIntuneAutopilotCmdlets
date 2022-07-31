@@ -12,7 +12,7 @@
     RootModule = 'IDMCmdlets.psm1'
 
     # Version number of this module.
-    ModuleVersion = '1.0.0.3'
+    ModuleVersion = '1.0.0.7'
 
     # ID used to uniquely identify this module
     GUID = 'a8428a2b-be4c-43c7-b44c-ea20d0d04490'
@@ -48,7 +48,7 @@
     ProcessorArchitecture = 'None'
 
     # Modules that must be imported into the global environment prior to importing this module
-    # RequiredModules = @()
+    RequiredModules = @('AzureAD')
 
     # Assemblies that must be loaded prior to importing this module
     RequiredAssemblies = @()
@@ -67,25 +67,29 @@
 
     # Functions to export from this module
     FunctionsToExport = @(
-        'Connect-IDMGraphApp',
-        'Get-IDMGraphAuthToken',
-        'Update-IDMGraphAccessToken',
-        'Invoke-IDMGraphRequests',
+        'Connect-IDMGraphApp'
+        'Get-IDMGraphAuthToken'
         'Get-IDMDevice'
+        'Get-IDMDevices'
         'Get-IDMAzureDevices'
         'Get-IDMDevicePendingActions'
         'Get-IDMDeviceAssignedUser'
         'Get-IDMDeviceAADUser'
+        'Get-IDMAzureUser'
+        'Get-IDMAzureUsers'
         'Get-IDMDeviceCategory'
-        'Set-IDMDeviceCategory'
-        'Invoke-IDMDeviceAction'
-        'Remove-IDMDeviceRecords'
         'Get-IDMIntuneAssignments'
-        'Set-IDMResourceFriendlyName'
-        'Set-IDMResourceFriendlyType'
         'Get-IDMAutopilotProfile'
         'Get-IDMAutopilotDevice'
+        'Set-IDMDeviceCategory'
+        'Set-IDMResourceFriendlyName'
+        'Set-IDMResourceFriendlyType'
         'Set-IDMAutopilotDeviceTag'
+        'Set-IDMDeviceAssignedUser'
+        'Update-IDMGraphAccessToken'
+        'Invoke-IDMGraphRequests'
+        'Invoke-IDMDeviceAction'
+        'Remove-IDMDeviceRecords'
     )
 
     # Cmdlets to export from this module
@@ -112,7 +116,7 @@
         PSData = @{
 
             # Tags applied to this module. These help with module discovery in online galleries.
-            Tags = @('Intune','Devices','MDM','Graph','Autopilot')
+            Tags = @('Intune','Devices','MDM','Graph','Autopilot','Azure')
 
             # A URL to the license for this module.
             LicenseUri = 'https://raw.githubusercontent.com/PowerShellCrack/PSIntuneAutopilotCmdlets/main/LICENSE'

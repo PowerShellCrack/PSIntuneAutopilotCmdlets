@@ -19,8 +19,6 @@ Function Connect-IDMGraphApp {
 
     .EXAMPLE
     Connect-IDMGraphApp -TenantId $TenantID -AppId $app -AppSecret $secret
-
-
     #>
 
     [cmdletbinding()]
@@ -73,10 +71,7 @@ Function Connect-IDMGraphApp {
         return $authHeader
     }
     Catch{
-        write-host $_.Exception.Message -f Red
-        write-host $_.Exception.ItemName -f Red
-        write-host
-        break
+        Write-Error ("{0}: {1}" -f $_.Exception.ItemName, $_.Exception.Message)
     }
 }
 
@@ -84,14 +79,21 @@ function Get-IDMGraphAuthToken{
 
     <#
     .SYNOPSIS
-    This function is used to authenticate with the Graph API REST interface
+        This function is used to authenticate with the Graph API REST interface
+
     .DESCRIPTION
-    The function authenticate with the Graph API Interface with the tenant name
+        The function authenticate with the Graph API Interface with the tenant name
+
+    .PARAMETER User
+        Must be in UPN format (email). This is the user principal name (eg user@domain.com)
+
     .EXAMPLE
-    Get-IDMGraphAuthToken
-    Authenticates you with the Graph API interface
+        Get-IDMGraphAuthToken
+        Authenticates you with the Graph API interface
+
     .NOTES
-    NAME: Get-IDMGraphAuthToken
+    Requires: AzureAD Module
+
     #>
     [cmdletbinding()]
     param
@@ -107,12 +109,7 @@ function Get-IDMGraphAuthToken{
     $AadModule = Get-Module -Name "AzureAD" -ListAvailable
 
     if ($AadModule -eq $null) {
-        write-host
-        write-host "AzureAD Powershell module not installed..." -f Red
-        write-host "Install by running 'Install-Module AzureAD' from an elevated PowerShell prompt" -f Yellow
-        write-host "Script can't continue..." -f Red
-        write-host
-        exit
+        Write-Error "AzureAD Powershell module not installed. Install by running 'Install-Module AzureAD' from an elevated PowerShell prompt"
     }
 
     # Getting path to ActiveDirectory Assemblies
@@ -165,18 +162,11 @@ function Get-IDMGraphAuthToken{
             return $authHeader
         }
         else {
-            Write-Host
-            Write-Host "Authorization Access Token is null, please re-run authentication..." -ForegroundColor Red
-            Write-Host
-            break
+            Write-Error "Authorization Access Token is null, please re-run authentication..."
         }
     }
-
     catch {
-        write-host $_.Exception.Message -f Red
-        write-host $_.Exception.ItemName -f Red
-        write-host
-        break
+        Write-Error ("{0}: {1}" -f $_.Exception.ItemName, $_.Exception.Message)
     }
 }
 
@@ -184,21 +174,25 @@ function Get-IDMGraphAuthToken{
 function Update-IDMGraphAccessToken{
     <#
     .SYNOPSIS
-    Refreshes an access token based on refresh token
-    .NOTES
-        Returns a refreshed access token
+        Refreshes an access token based on refresh token
+
     .PARAMETER Token
-        -Token is the existing refresh token
+        Token is the existing refresh token
+
     .PARAMETER tenantID
-        -This is the tenant ID eg. domain.onmicrosoft.com
+        This is the tenant ID in GUID format
+
     .PARAMETER ClientID
-        -This is the app reg client ID
+        This is the app reg client ID in GUID format
+
     .PARAMETER Secret
-        -This is the client secret
+        This is the client secret
+
     .PARAMETER Scope
-        -An array of access scope, default is: "Group.ReadWrite.All" & "User.ReadWrite.All"
+        An array of access scope, default is: "Group.ReadWrite.All" & "User.ReadWrite.All"
+
     .LINK
-    Reference: https://docs.microsoft.com/en-us/graph/auth-v2-user#3-get-a-token
+        Reference: https://docs.microsoft.com/en-us/graph/auth-v2-user#3-get-a-token
     #>
     Param(
         [parameter(Mandatory = $true)]
@@ -224,32 +218,90 @@ function Update-IDMGraphAccessToken{
     $uri = "https://login.microsoftonline.com/$TenantID/oauth2/$graphApiVersion/$Resource"
 
     $bodyHash = @{
-        client_id=$ClientID
-        scope=($Scope -join ' ')
-        refresh_token=$Token
-        #redirect_uri='http://localhost'
-        redirect_uri='https://graph.microsoft.com/.default'
-        grant_type='refresh_token'
-        client_secret=$Secret
+        client_id = $ClientID
+        scope = ($Scope -join ' ')
+        refresh_token = $Token
+        #redirect_uri =' http://localhost'
+        redirect_uri = 'https://graph.microsoft.com/.default'
+        grant_type = 'refresh_token'
+        client_secret = $Secret
     }
     $body = ($bodyHash.GetEnumerator() | Foreach {$_.key +'='+ [System.Web.HttpUtility]::UrlEncode($_.Value)}) -Join '&'
 
-    $Response = Invoke-RestMethod -Uri $uri -body $body -ContentType 'application/x-www-form-urlencoded' -Method Post
+    try {
+        Write-Verbose "GET $uri"
+        $Response = Invoke-RestMethod -Uri $uri -body $body -ContentType 'application/x-www-form-urlencoded' -Method Post
+    }
+    catch {
+        $ex = $_.Exception
+        $errorResponse = $ex.Response.GetResponseStream()
+        $reader = New-Object System.IO.StreamReader($errorResponse)
+        $reader.BaseStream.Position = 0
+        $reader.DiscardBufferedData()
+        $responseBody = $reader.ReadToEnd();
+        Write-Host "Response content:`n$responseBody" -f Red
+        Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+    }
     return $Response
 }
-
 
 Function Invoke-IDMGraphRequests{
     <#
     .SYNOPSIS
-     Invoke Rest method in multithread
+        Invoke GET method to Microsoft Graph Rest API in multithread
+
     .DESCRIPTION
-     Invoke Rest method using the get method but do it using a pool of runspaces
+        Invoke Rest method using the get method but do it using a pool of runspaces
+
+    .PARAMETER $Uri
+        Specify graph uri(s) for requests
+
+    .PARAMETER Headers
+        Header for Graph bearer token. Must be in hashtable format:
+        Name            Value
+        ----            -----
+        Authorization = 'Bearer eyJ0eXAiOiJKV1QiLCJub25jZSI6ImVhMnZPQjlqSmNDOTExcVJtNE1EaEpCd2YyVmRyNXlodjRqejFOOUZhNmciLCJhbGci...'
+        Content-Type = 'application/json'
+        ExpiresOn = '7/29/2022 7:55:14 PM +00:00'
+
+        Use command:
+        $AuthToken = Get-IDMGraphAuthToken -User (Connect-MSGraph).UPN
+
+    .PARAMETER Threads
+        Integer. Defaults to 15. Don't change unless needed (for slower CPU's)
+
+    .PARAMETER Passthru
+        Using -Passthru will out graph data including next link and context. Value contains devices.
+        No Passthru will out value only
+
+    .EXAMPLE
+        $Uri = 'https://graph.microsoft.com/beta/deviceManagement/managedDevices'
+        Invoke-IDMGraphRequests -Uri $Uri -Headers $AuthToken
+
+    .EXAMPLE
+        $Uri = @(
+            'https://graph.microsoft.com/beta/deviceManagement/deviceCompliancePolicies'
+            'https://graph.microsoft.com/beta/deviceManagement/deviceComplianceScripts'
+            'https://graph.microsoft.com/beta/deviceManagement/deviceConfigurations'
+            'https://graph.microsoft.com/beta/deviceManagement/deviceEnrollmentConfigurations'
+            'https://graph.microsoft.com/beta/deviceManagement/deviceHealthScripts'
+            'https://graph.microsoft.com/beta/deviceManagement/deviceManagementScripts'
+            'https://graph.microsoft.com/beta/deviceManagement/roleScopeTags'
+            'https://graph.microsoft.com/beta/deviceManagement/windowsQualityUpdateProfiles'
+            'https://graph.microsoft.com/beta/deviceManagement/windowsFeatureUpdateProfiles'
+            'https://graph.microsoft.com/beta/deviceAppManagement/windowsInformationProtectionPolicies'
+            'https://graph.microsoft.com/beta/deviceAppManagement/mdmWindowsInformationProtectionPolicies'
+            'https://graph.microsoft.com/beta/deviceAppManagement/mobileApps'
+            'https://graph.microsoft.com/beta/deviceAppManagement/policysets'
+        )
+        $Responses = $Uri | Invoke-IDMGraphRequests -Headers $AuthToken -Threads $Uri.count
+
+    .EXAMPLE
+        Invoke-IDMGraphRequests -Uri 'https://graph.microsoft.com/beta/deviceManagement/managedDevices' -Headers $AuthToken -Passthru
 
     .NOTES
-    Reference:
-    https://b-blog.info/en/implement-multi-threading-with-net-runspaces-in-powershell.html
-    https://adamtheautomator.com/powershell-multithreading/
+        https://b-blog.info/en/implement-multi-threading-with-net-runspaces-in-powershell.html
+        https://adamtheautomator.com/powershell-multithreading/
 
     #>
     [cmdletbinding()]
@@ -263,7 +315,7 @@ Function Invoke-IDMGraphRequests{
         [int]$Threads = 15,
 
         [switch]$Passthru
-    );
+    )
     Begin{
         #initialSessionState will hold typeDatas and functions that will be passed to every runspace.
         $initialSessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault();
@@ -272,7 +324,7 @@ Function Invoke-IDMGraphRequests{
         function Get-RestData {
             param (
                 [Parameter(Mandatory=$true,Position=0)][string]$Uri,
-                [Parameter(Mandatory=$true,Position=1)][hashtable]$Headers
+                [Parameter(Mandatory=$False,Position=1)][hashtable]$Headers
             );
             try {
                 $response = Invoke-RestMethod -Uri $Uri -Headers $Headers -Method Get -DisableKeepAlive -ErrorAction Stop;
@@ -287,22 +339,22 @@ Function Invoke-IDMGraphRequests{
                 return $false;
             };
 
-            return $response.value;
+            return $response
         }
 
         #add function to the initialSessionState
-        $GetRestData_def = Get-Content Function:\Get-RestData;
-        $GetRestDataSessionStateFunction = New-Object System.Management.Automation.Runspaces.SessionStateFunctionEntry -ArgumentList 'Get-RestData', $GetRestData_def;
-        $initialSessionState.Commands.Add($GetRestDataSessionStateFunction);
+        $GetRestData_def = Get-Content Function:\Get-RestData
+        $GetRestDataSessionStateFunction = New-Object System.Management.Automation.Runspaces.SessionStateFunctionEntry -ArgumentList 'Get-RestData', $GetRestData_def
+        $initialSessionState.Commands.Add($GetRestDataSessionStateFunction)
 
         #define your TypeData (Makes the output as object later on)
         $init = @{
             MemberName = 'Init';
             MemberType = 'ScriptMethod';
             Value = {
-                Add-Member -InputObject $this -MemberType NoteProperty -Name uri -Value $null;
-                Add-Member -InputObject $this -MemberType NoteProperty -Name headers -Value $null;
-                Add-Member -InputObject $this -MemberType NoteProperty -Name value -Value $null;
+                Add-Member -InputObject $this -MemberType NoteProperty -Name uri -Value $null
+                Add-Member -InputObject $this -MemberType NoteProperty -Name headers -Value $null
+                Add-Member -InputObject $this -MemberType NoteProperty -Name rawdata -Value $null
             };
             Force = $true;
         }
@@ -315,10 +367,10 @@ Function Invoke-IDMGraphRequests{
                 param (
                     [Parameter(Mandatory=$true)][string]$Uri,
                     [Parameter(Mandatory=$true)][hashtable]$Headers
-                );
-                $this.uri = $Uri;
+                )
+                $this.uri = $Uri
                 $this.headers = $Headers
-                $this.value = (Get-RestData -Uri $Uri -Headers $Headers);
+                $this.rawdata = (Get-RestData -Uri $Uri -Headers $Headers)
             };
             Force = $true;
         }
@@ -342,7 +394,9 @@ Function Invoke-IDMGraphRequests{
 
             $Result = New-Object PSObject -Property @{
                 uri = $page.Uri
-                value = $page.value
+                #value = $page.value
+                value = $page.rawdata.value
+                nextlink = $page.rawdata.'@odata.nextLink'
             };
 
             return $Result;
@@ -374,20 +428,14 @@ Function Invoke-IDMGraphRequests{
         foreach ($Job in $Jobs) {
             $Result = $Job.Pipe.EndInvoke($Job.Result)
             #add uri to object list if passthru used
-            If($Passthru){
-                Foreach($item in $Result.value){
-                    $OutputItem = New-Object PSObject
-                    $OutputItem | Add-Member NoteProperty "uri" -Value $Result.uri -Force
-                    Foreach($p in $item | Get-Member -MemberType NoteProperty){
-                        $OutputItem | Add-Member NoteProperty $p.name -Value $item.($p.name)
-                    }
-                $Results += $OutputItem
-                }
-            }
-            Else{
-                $Results += $Result
-            }
+            $Results += $Result
         }
-        Return $Results
+
+        If($Passthru){
+            Return $Results
+        }
+        Else{
+            Return $Results.Value
+        }
     }
 }
