@@ -1,10 +1,22 @@
 # Change log for IDMCmdlets
 
+## 1.0.0.9 August 1, 2022
+
+- Fixed Invoke-IDMGraphBatchRequests and Invoke-IDMGraphRequests passthru output for assigments
+- Sped up loop using hashtables instead of objects by several seconds
+- Fixed Set-IDMResourceFriendlyName ouput; name or friendlyname
+- Added IncludeGuest option for Get-IDMAzureUsers; defaults to members only
+
+## 1.0.0.8 July 31, 2022
+
+- Added Graph batch Requests; saves 5 seconds off queries
+- Added ErrorAction to each Invoke-Webrequest to stop
+- Added IDMHelper.ps1 to support catch errors with rest requests
 
 ## 1.0.0.7 July 31, 2022
 
 - Fixed pending actions to default pending output; allow all done action as well with -AllowAll parameter
-- Renamed IDM.ps1 to IDMDevice.ps1 to desgniate its for devices; added IDMusers.ps1 to Users
+- Renamed IDM.ps1 to IDMDevice.ps1 to designate its for devices; added IDMusers.ps1 to Users
 - Fixed filter query on cmdlets. Nullified the variable so other cmdlets do not use it on accident
 
 ## 1.0.0.6 July 30, 2022

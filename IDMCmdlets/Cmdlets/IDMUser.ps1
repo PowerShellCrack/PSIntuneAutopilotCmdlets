@@ -101,7 +101,7 @@ Function Get-IDMAzureUser{
             $reader.DiscardBufferedData()
             $responseBody = $reader.ReadToEnd();
             Write-Host "Response content:`n$responseBody" -f Red
-            Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+            Write-Error ("Request to {0} failed with HTTP Status: {1} {2}" -f $Uri,$ex.Response.StatusCode,$ex.Response.StatusDescription)
         }
     }
     End{
@@ -124,6 +124,9 @@ Function Get-IDMAzureUsers{
     .PARAMETER FilterBy
     Options are: UserPrincipalName,SurName,EMailAddress,SearchDisplayName. Defaults to 'UserPrincipalName'
 
+    .PARAMETER IncludeGuests
+    [True | False] Include users that have an external label on them
+
     .PARAMETER AuthToken
         Defaults to $Global:AuthToken
         Header for Graph bearer token. Must be in hashtable format:
@@ -137,12 +140,23 @@ Function Get-IDMAzureUsers{
         Get-IDMGraphAuthToken -User (Connect-MSGraph).UPN
 
     .EXAMPLE
+        Get-IDMAzureUsers
+        Returns all users except guest
+
+    .EXAMPLE
+        Get-IDMAzureUsers -IncludeGuests
+        Returns all users except guest
+
+    .EXAMPLE
         Get-IDMAzureUsers -Filter 'AdeleV@dtolab.ltd'
         Returns a user with UPN of 'AdeleV@dtolab.ltd'
 
     .EXAMPLE
         @('John','Bob') | Get-IDMAzureUsers -FilterBy SearchDisplayName
         Returns all users with display name of Bob of John in it
+
+    .LINK
+        https://docs.microsoft.com/en-us/graph/api/user-list?view=graph-rest-beta&tabs=http
     #>
 
     [cmdletbinding()]
@@ -155,6 +169,7 @@ Function Get-IDMAzureUsers{
         [ValidateSet('UserPrincipalName','SurName','EMailAddress','SearchDisplayName')]
         [string]$FilterBy = 'UserPrincipalName',
 
+        [switch]$IncludeGuests,
 
         [Parameter(Mandatory=$false)]
         $AuthToken = $Global:AuthToken
@@ -185,22 +200,18 @@ Function Get-IDMAzureUsers{
         If($Query.count -ge 1){
             $filterQuery = "`?`$$Operator=" + ($Query -join ' and ')
         }
-
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource" + $filterQuery
+        If($IncludeGuests){
+            $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource" + $filterQuery
+        }Else{
+            $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)?`$filter=userType eq 'Member'" + $filterQuery
+        }
 
         try {
             Write-Verbose "Get $uri"
             $response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Get -ErrorAction Stop
         }
         catch {
-            $ex = $_.Exception
-            $errorResponse = $ex.Response.GetResponseStream()
-            $reader = New-Object System.IO.StreamReader($errorResponse)
-            $reader.BaseStream.Position = 0
-            $reader.DiscardBufferedData()
-            $responseBody = $reader.ReadToEnd();
-            Write-Host "Response content:`n$responseBody" -f Red
-            Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+            Write-ErrorResponse($_)
         }
     }
     End{
@@ -263,14 +274,7 @@ Function Get-IDMDeviceAssignedUser{
             $response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Get -ErrorAction Stop
         }
         catch {
-            $ex = $_.Exception
-            $errorResponse = $ex.Response.GetResponseStream()
-            $reader = New-Object System.IO.StreamReader($errorResponse)
-            $reader.BaseStream.Position = 0
-            $reader.DiscardBufferedData()
-            $responseBody = $reader.ReadToEnd();
-            Write-Host "Response content:`n$responseBody" -f Red
-            Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+            Write-ErrorResponse($_)
         }
     }
     End{
@@ -361,14 +365,7 @@ function Set-IDMDeviceAssignedUser {
             $response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Post -Body $JSON -ErrorAction Stop
 
         } catch {
-            $ex = $_.Exception
-            $errorResponse = $ex.Response.GetResponseStream()
-            $reader = New-Object System.IO.StreamReader($errorResponse)
-            $reader.BaseStream.Position = 0
-            $reader.DiscardBufferedData()
-            $responseBody = $reader.ReadToEnd();
-            Write-Host "Response content:`n$responseBody" -f Red
-            Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+            Write-ErrorResponse($_)
         }
     }
 

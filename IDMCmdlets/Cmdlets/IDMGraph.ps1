@@ -56,7 +56,7 @@ Function Connect-IDMGraphApp {
             client_Id     = $AppId
             Client_Secret = $AppSecret
         }
-        $ConnectGraph = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token" -Method POST -Body $Body
+        $ConnectGraph = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token" -Method POST -Body $Body -ErrorAction Stop
         $token = $ConnectGraph.access_token
         #format the date correctly
         $ExpiresOnMinutes = $ConnectGraph.expires_in / 60
@@ -230,20 +230,140 @@ function Update-IDMGraphAccessToken{
 
     try {
         Write-Verbose "GET $uri"
-        $Response = Invoke-RestMethod -Uri $uri -body $body -ContentType 'application/x-www-form-urlencoded' -Method Post
+        $Response = Invoke-RestMethod -Uri $uri -body $body -ContentType 'application/x-www-form-urlencoded' -Method Post -ErrorAction Stop
     }
     catch {
-        $ex = $_.Exception
-        $errorResponse = $ex.Response.GetResponseStream()
-        $reader = New-Object System.IO.StreamReader($errorResponse)
-        $reader.BaseStream.Position = 0
-        $reader.DiscardBufferedData()
-        $responseBody = $reader.ReadToEnd();
-        Write-Host "Response content:`n$responseBody" -f Red
-        Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+        Write-ErrorResponse($_)
     }
     return $Response
 }
+
+Function Invoke-IDMGraphBatchRequests{
+<#
+    .SYNOPSIS
+        Invoke GET method to Microsoft Graph Rest API using batch method
+
+    .DESCRIPTION
+        Invoke Rest method using the get method but do it using collection of Get requests as one batch request
+
+    .PARAMETER $Uri
+        Specify graph uri(s) for requests
+
+    .PARAMETER Headers
+        Header for Graph bearer token. Must be in hashtable format:
+        Name            Value
+        ----            -----
+        Authorization = 'Bearer eyJ0eXAiOiJKV1QiLCJub25jZSI6ImVhMnZPQjlqSmNDOTExcVJtNE1EaEpCd2YyVmRyNXlodjRqejFOOUZhNmciLCJhbGci...'
+        Content-Type = 'application/json'
+        ExpiresOn = '7/29/2022 7:55:14 PM +00:00'
+
+        Use command:
+        $AuthToken = Get-IDMGraphAuthToken -User (Connect-MSGraph).UPN
+
+    .PARAMETER Passthru
+        Using -Passthru will out graph data including next link and context. Value contains devices.
+        No Passthru will out value only
+
+    .EXAMPLE
+        $Uri = 'https://graph.microsoft.com/beta/deviceManagement/managedDevices'
+        Invoke-IDMGraphBatchRequests -Uri $Uri -Headers $AuthToken
+
+    .EXAMPLE
+        $UriResources = @(
+            'https://graph.microsoft.com/beta/users/c9d00ac2-b07d-4477-961b-442bbc424586/memberOf'
+            'https://graph.microsoft.com/beta/devices/b215decf-4188-4d19-9e22-fb2e89ae0fec/memberOf'
+            'https://graph.microsoft.com/beta/deviceManagement/deviceCompliancePolicies'
+            'https://graph.microsoft.com/beta/deviceManagement/deviceComplianceScripts'
+            'https://graph.microsoft.com/beta/deviceManagement/deviceConfigurations'
+            'https://graph.microsoft.com/beta/deviceManagement/deviceEnrollmentConfigurations'
+            'https://graph.microsoft.com/beta/deviceManagement/deviceHealthScripts'
+            'https://graph.microsoft.com/beta/deviceManagement/deviceManagementScripts'
+            'https://graph.microsoft.com/beta/deviceManagement/roleScopeTags'
+            'https://graph.microsoft.com/beta/deviceManagement/windowsQualityUpdateProfiles'
+            'https://graph.microsoft.com/beta/deviceManagement/windowsFeatureUpdateProfiles'
+            'https://graph.microsoft.com/beta/deviceAppManagement/windowsInformationProtectionPolicies'
+            'https://graph.microsoft.com/beta/deviceAppManagement/mdmWindowsInformationProtectionPolicies'
+            'https://graph.microsoft.com/beta/deviceAppManagement/mobileApps'
+            'https://graph.microsoft.com/beta/deviceAppManagement/policysets'
+        )
+        $Response = $UriResources | Invoke-IDMGraphBatchRequests -Headers $Global:AuthToken -verbose
+
+    .EXAMPLE
+        Invoke-IDMGraphBatchRequests -Uri 'https://graph.microsoft.com/beta/deviceManagement/managedDevices' -Headers $Global:AuthToken -Passthru
+
+    .LINK
+        https://docs.microsoft.com/en-us/graph/sdks/batch-requests?tabs=csharp
+        https://docs.microsoft.com/en-us/graph/json-batching
+    #>
+    [cmdletbinding()]
+    param (
+        [Parameter(Mandatory=$True,ValueFromPipelineByPropertyName=$true,ValueFromPipeline=$true,HelpMessage="Specify Uri or array or Uris")]
+        [string[]]$Uri,
+
+        [Parameter(Mandatory=$false)]
+        [hashtable]$Headers = $Global:AuthToken,
+
+        [switch]$Passthru
+    )
+    Begin{
+        $graphApiVersion = "beta"
+        $Method = 'GET'
+        $batch = @()
+        $i = 1
+        #Build custom object for assignment
+        $BatchProperties = "" | Select requests
+    }
+    Process{
+        Foreach($url in $Uri | Select -Unique){
+            $URLRequests = "" | Select id,method,url
+            $URLRequests.id = $i
+            $URLRequests.method = $Method
+            $URLRequests.url = $url.replace("https://graph.microsoft.com/$graphApiVersion",'')
+            $i++
+            $batch += $URLRequests
+        }
+    }
+    End{
+        $BatchProperties.requests = $batch
+        #convert body to json
+        $BatchBody = $BatchProperties | ConvertTo-Json
+
+        Write-Verbose $BatchBody
+        $batchUri = "https://graph.microsoft.com/$graphApiVersion/`$batch"
+        try {
+            Write-Verbose "Get $batchUri"
+            $response = Invoke-RestMethod -Uri $batchUri -Headers $Headers -Method Post -Body $BatchBody
+        }
+        catch {
+            Write-ErrorResponse($_)
+        }
+
+        If($Passthru){
+            return $response.responses.body
+        }
+        Else{
+            $BatchResponses = @()
+            $i=0
+            foreach($Element in $response.responses.body){
+                $hashtable = @{}
+                Foreach($Item in $Element.value){
+                    foreach( $property in $Item.psobject.properties.name )
+                    {
+                        $hashtable[$property] = $Item.$property
+                    }
+                    $hashtable['uri'] = "https://graph.microsoft.com/$graphApiVersion" + $batch[$i].url
+                    $hashtable['type'] = (Split-Path $Element.'@odata.context' -Leaf).replace('$metadata#','')
+                    $Object = New-Object PSObject -Property $hashtable
+                    $BatchResponses += $Object
+                }
+                $i++
+            }
+            return $BatchResponses
+        }
+    }
+}
+
+
 
 Function Invoke-IDMGraphRequests{
     <#
@@ -299,7 +419,7 @@ Function Invoke-IDMGraphRequests{
     .EXAMPLE
         Invoke-IDMGraphRequests -Uri 'https://graph.microsoft.com/beta/deviceManagement/managedDevices' -Headers $AuthToken -Passthru
 
-    .NOTES
+    .LINK
         https://b-blog.info/en/implement-multi-threading-with-net-runspaces-in-powershell.html
         https://adamtheautomator.com/powershell-multithreading/
 
@@ -325,9 +445,9 @@ Function Invoke-IDMGraphRequests{
             param (
                 [Parameter(Mandatory=$true,Position=0)][string]$Uri,
                 [Parameter(Mandatory=$False,Position=1)][hashtable]$Headers
-            );
+            )
             try {
-                $response = Invoke-RestMethod -Uri $Uri -Headers $Headers -Method Get -DisableKeepAlive -ErrorAction Stop;
+                $response = Invoke-RestMethod -Uri $Uri -Headers $Headers -Method Get -DisableKeepAlive -ErrorAction Stop
             } catch {
                 $ex = $_.Exception
                 $errorResponse = $ex.Response.GetResponseStream()
@@ -335,9 +455,8 @@ Function Invoke-IDMGraphRequests{
                 $reader.BaseStream.Position = 0
                 $reader.DiscardBufferedData()
                 $responseBody = $reader.ReadToEnd();
-                Write-Host ("{0}: Error Status: {1}; {2}" -f $uri,$ex.Response.StatusCode,$responseBody)
-                return $false;
-            };
+                Write-Error ("{0}: Error Status: {1}; {2}" -f $uri,$ex.Response.StatusCode,$responseBody)
+            }
 
             return $response
         }
@@ -435,7 +554,22 @@ Function Invoke-IDMGraphRequests{
             Return $Results
         }
         Else{
-            Return $Results.Value
+            $JobResponses = @()
+            $i=0
+            $Item = $Results.value[0]
+            Foreach($Item in $Results.value){
+                $hashtable = @{}
+                foreach( $property in $Item.psobject.properties.name  )
+                {
+                    $hashtable[$property] = $Item.$property
+                }
+                $hashtable['uri'] = $Results[$i].uri
+                #$hashtable['type'] = $Results[$i].uri | Split-Path -Leaf -ErrorAction SilentlyContinue
+                $Object = New-Object PSObject -Property $hashtable
+                $JobResponses += $Object
+                $i++
+            }
+            return $JobResponses
         }
     }
 }

@@ -12,7 +12,7 @@
     RootModule = 'IDMCmdlets.psm1'
 
     # Version number of this module.
-    ModuleVersion = '1.0.0.7'
+    ModuleVersion = '1.0.0.9'
 
     # ID used to uniquely identify this module
     GUID = 'a8428a2b-be4c-43c7-b44c-ea20d0d04490'
@@ -88,6 +88,7 @@
         'Set-IDMDeviceAssignedUser'
         'Update-IDMGraphAccessToken'
         'Invoke-IDMGraphRequests'
+        'Invoke-IDMGraphBatchRequests'
         'Invoke-IDMDeviceAction'
         'Remove-IDMDeviceRecords'
     )

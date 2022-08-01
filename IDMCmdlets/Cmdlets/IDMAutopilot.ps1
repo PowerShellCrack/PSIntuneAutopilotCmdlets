@@ -39,7 +39,7 @@ Function Get-IDMAutopilotProfile{
     Write-Verbose "GET $uri"
 
     try {
-        $response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Get
+        $response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Get -ErrorAction Stop
         if ($id) {
             $response
         }
@@ -58,15 +58,7 @@ Function Get-IDMAutopilotProfile{
         }
     }
     catch {
-        $ex = $_.Exception
-        $errorResponse = $ex.Response.GetResponseStream()
-        $reader = New-Object System.IO.StreamReader($errorResponse)
-        $reader.BaseStream.Position = 0
-        $reader.DiscardBufferedData()
-        $responseBody = $reader.ReadToEnd();
-        Write-Host "Response content:`n$responseBody" -f Red
-        Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
-        break
+        Write-ErrorResponse($_)
     }
 }
 
@@ -134,7 +126,7 @@ Function Get-IDMAutopilotDevice{
         Write-Verbose "GET $uri"
 
         try {
-            $response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Get
+            $response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Get -ErrorAction Stop
             if ($id) {
                 $response
             }
@@ -143,7 +135,7 @@ Function Get-IDMAutopilotDevice{
                 $devicesNextLink = $response."@odata.nextLink"
 
                 while ($devicesNextLink -ne $null){
-                    $devicesResponse = (Invoke-RestMethod -Uri $devicesNextLink -Headers $AuthToken -Method Get)
+                    $devicesResponse = (Invoke-RestMethod -Uri $devicesNextLink -Headers $AuthToken -Method Get -ErrorAction Stop)
                     $devicesNextLink = $devicesResponse."@odata.nextLink"
                     $devices += $devicesResponse.value
                 }
@@ -158,15 +150,7 @@ Function Get-IDMAutopilotDevice{
             }
         }
         catch {
-            $ex = $_.Exception
-            $errorResponse = $ex.Response.GetResponseStream()
-            $reader = New-Object System.IO.StreamReader($errorResponse)
-            $reader.BaseStream.Position = 0
-            $reader.DiscardBufferedData()
-            $responseBody = $reader.ReadToEnd();
-            Write-Host "Response content:`n$responseBody" -f Red
-            Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
-            break
+            Write-ErrorResponse($_)
         }
     }
 }
@@ -233,17 +217,10 @@ Function Set-IDMAutopilotDeviceTag{
 
         try {
             Write-Verbose "GET $uri"
-            $null = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Body $BodyJson -Method POST
+            $null = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Body $BodyJson -Method POST -ErrorAction Stop
         }
         catch {
-            $ex = $_.Exception
-            $errorResponse = $ex.Response.GetResponseStream()
-            $reader = New-Object System.IO.StreamReader($errorResponse)
-            $reader.BaseStream.Position = 0
-            $reader.DiscardBufferedData()
-            $responseBody = $reader.ReadToEnd();
-            Write-Host "Response content:`n$responseBody" -f Red
-            Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+            Write-ErrorResponse($_)
         }
     }
 }

@@ -129,14 +129,7 @@ Function Get-IDMDevice{
         $Response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Get -ErrorAction Stop
     }
     catch {
-        $ex = $_.Exception
-        $errorResponse = $ex.Response.GetResponseStream()
-        $reader = New-Object System.IO.StreamReader($errorResponse)
-        $reader.BaseStream.Position = 0
-        $reader.DiscardBufferedData()
-        $responseBody = $reader.ReadToEnd();
-        Write-Host "Response content:`n$responseBody" -f Red
-        Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+        Write-ErrorResponse($_)
     }
 
     If($Expand)
@@ -330,14 +323,7 @@ Function Get-IDMDevices{
         $Response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Get -ErrorAction Stop
     }
     catch {
-        $ex = $_.Exception
-        $errorResponse = $ex.Response.GetResponseStream()
-        $reader = New-Object System.IO.StreamReader($errorResponse)
-        $reader.BaseStream.Position = 0
-        $reader.DiscardBufferedData()
-        $responseBody = $reader.ReadToEnd();
-        Write-Host "Response content:`n$responseBody" -f Red
-        Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+        Write-ErrorResponse($_)
     }
 
     If($Expand)
@@ -500,14 +486,7 @@ Function Get-IDMAzureDevices{
             $Response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Get -ErrorAction Stop
         }
         catch {
-            $ex = $_.Exception
-            $errorResponse = $ex.Response.GetResponseStream()
-            $reader = New-Object System.IO.StreamReader($errorResponse)
-            $reader.BaseStream.Position = 0
-            $reader.DiscardBufferedData()
-            $responseBody = $reader.ReadToEnd();
-            Write-Host "Response content:`n$responseBody" -f Red
-            Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+            Write-ErrorResponse($_)
         }
     }
     End{
@@ -580,14 +559,7 @@ Function Get-IDMDevicePendingActions{
             $response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Get -ErrorAction Stop
         }
         catch {
-            $ex = $_.Exception
-            $errorResponse = $ex.Response.GetResponseStream()
-            $reader = New-Object System.IO.StreamReader($errorResponse)
-            $reader.BaseStream.Position = 0
-            $reader.DiscardBufferedData()
-            $responseBody = $reader.ReadToEnd();
-            Write-Host "Response content:`n$responseBody" -f Red
-            Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+            Write-ErrorResponse($_)
         }
     }
     End{
@@ -630,17 +602,10 @@ Function Get-IDMDeviceCategory{
 
     try {
         Write-Verbose "GET $uri"
-        $response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Get
+        $response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Get -ErrorAction Stop
     }
     catch {
-        $ex = $_.Exception
-        $errorResponse = $ex.Response.GetResponseStream()
-        $reader = New-Object System.IO.StreamReader($errorResponse)
-        $reader.BaseStream.Position = 0
-        $reader.DiscardBufferedData()
-        $responseBody = $reader.ReadToEnd();
-        Write-Host "Response content:`n$responseBody" -f Red
-        Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+        Write-ErrorResponse($_)
     }
     Finally{
         $response.Value
@@ -692,17 +657,10 @@ Function Set-IDMDeviceCategory{
 
     try {
         Write-Verbose "GET $uri"
-        $null = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Body $BodyJson -Method PUT
+        $null = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Body $BodyJson -Method PUT -ErrorAction Stop
     }
     catch {
-        $ex = $_.Exception
-        $errorResponse = $ex.Response.GetResponseStream()
-        $reader = New-Object System.IO.StreamReader($errorResponse)
-        $reader.BaseStream.Position = 0
-        $reader.DiscardBufferedData()
-        $responseBody = $reader.ReadToEnd();
-        Write-Host "Response content:`n$responseBody" -f Red
-        Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+        Write-ErrorResponse($_)
     }
 }
 
@@ -880,17 +838,10 @@ Function Invoke-IDMDeviceAction{
             Write-host $ActionMsg
             try {
                 Write-Verbose ("{0}: {1}" -f $RequestParams.Method,$RequestParams.uri)
-                $null = Invoke-RestMethod @RequestParams
+                $null = Invoke-RestMethod @RequestParams -ErrorAction Stop
             }
             catch {
-                $ex = $_.Exception
-                $errorResponse = $ex.Response.GetResponseStream()
-                $reader = New-Object System.IO.StreamReader($errorResponse)
-                $reader.BaseStream.Position = 0
-                $reader.DiscardBufferedData()
-                $responseBody = $reader.ReadToEnd();
-                Write-Host "Response content:`n$responseBody" -f Red
-                Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+                Write-ErrorResponse($_)
             }
         }
     }
@@ -937,7 +888,7 @@ Function Remove-IDMDeviceRecords{
         [Parameter(Mandatory=$true,ParameterSetName='All')]
         [switch]$SiteCode,
 
-        [Parameter(Mandatory=$false,ParameterSetName='Azure')]
+        [Parameter(Mandatory=$false,ParameterSetName='Azure')]`
         $AuthToken = $Global:AuthToken
     )
 
@@ -1177,10 +1128,12 @@ Function Get-IDMIntuneAssignments{
     $UriResources += $PlatformComponents | %{ "https://graph.microsoft.com/$graphApiVersion/$($_)"}
 
     #Using -Passthru with Invoke-IDMGraphRequests will out graph data including next link and context. Value contains devices. No Passthru will out value only
-    $GraphRequests = $UriResources | Invoke-IDMGraphRequests -Headers $AuthToken -Threads $UriResources.Count
+    #$GraphRequests = $UriResources | Invoke-IDMGraphRequests -Headers $AuthToken -Threads $UriResources.Count
+    $GraphRequests = $UriResources | Invoke-IDMGraphBatchRequests -Headers $AuthToken
+    #$GraphRequests = $UriResources | Invoke-IDMGraphRequests -Headers $AuthToken
 
-    $DeviceGroups = ($GraphRequests | Where {$_.uri -like '*/devices/*/memberOf'}) | Select id, displayName,@{N='GroupType';E={If('DynamicMembership' -in $_.groupTypes){return 'Dynamic'}Else{return 'Static'} }}
-    $UserGroups = ($GraphRequests | Where {$_.uri -like '*/users/*/memberOf'}) | Select id, displayName,@{N='GroupType';E={If('DynamicMembership' -in $_.groupTypes){return 'Dynamic'}Else{return 'Static'} }}
+    $DeviceGroups = ($GraphRequests | Where {$_.uri -like '*/devices/*/memberOf'})
+    $UserGroups = ($GraphRequests | Where {$_.uri -like '*/users/*/memberOf'})
 
     $DeviceGroupMembers = $DeviceGroups | Select id, displayName,@{N='GroupType';E={If('DynamicMembership' -in $_.groupTypes){return 'Dynamic'}Else{return 'Static'} }},@{N='Target';E={'Devices'}}
     $UserGroupMembers = $UserGroups | Select id, displayName,@{N='GroupType';E={If('DynamicMembership' -in $_.groupTypes){return 'Dynamic'}Else{return 'Static'} }},@{N='Target';E={'Users'}}
@@ -1189,34 +1142,16 @@ Function Get-IDMIntuneAssignments{
     $AllGroupMembers = @()
     $AllGroupMembers = $DeviceGroupMembers + $UserGroupMembers
 
-    <#
-    $GraphRequests.'@odata.type' | Select -unique
-    $GraphRequests.type | Select -unique
-    ($GraphRequests.Value | Where '@odata.type' -eq '#microsoft.graph.deviceEnrollmentPlatformRestrictionsConfiguration')
-    ($GraphRequests.Value | Where '@odata.type' -eq '#microsoft.graph.deviceEnrollmentLimitConfiguration')
-    ($GraphRequests.Value | Where '@odata.type' -eq '#microsoft.graph.deviceEnrollmentWindowsHelloForBusinessConfiguration')
-    ($GraphRequests.Value | Where '@odata.type' -eq '#microsoft.graph.windows10EnrollmentCompletionPageConfiguration')
-    #>
     $PlatformResources = ($GraphRequests | Where {$_.'@odata.type' -match ($PlatformType -join '|')}) |
-                                            Select id,uri,
+                                            Select Id,uri,
                                                 @{N='type';E={Set-IDMResourceFriendlyType -Category (split-path $_.uri -leaf) -ODataType $_.'@odata.type'}},
                                                 @{N='name';E={Set-IDMResourceFriendlyName -Name $_.displayName -LicenseType $_.licenseType -ODataType $_.'@odata.type'}},
-                                                @{N='Assigned';E={If('isAssigned' -in ($_ | Get-Member -MemberType NoteProperty).Name){[boolean]$_.isAssigned}}}
+                                                @{N='assigned';E={If('isAssigned' -in ($_ | Get-Member -MemberType NoteProperty).Name){[boolean]$_.isAssigned}Else{'Unknown'}}}
 
-    <#
-    $PlatformResources[35]
-    $PlatformResources[418]
-    $PlatformResources = $GraphRequests| Select id,@{N='type';E={Set-IDMResourceFriendlyType -Category (split-path $_.uri -leaf) -ODataType $_.'@odata.type'}}, @{N='name';E={If($_.licenseType){$_.displayName + ' (' + $_.licenseType + ')'}Else{$_.displayName}}},@{N='Assigned';E={If('isAssigned' -in ($_ | Get-Member -MemberType NoteProperty).Name){[boolean]$_.isAssigned}}} | ft
-    $PlatformResources = $GraphRequests| Select id,uri,@{N='type';E={Set-IDMResourceFriendlyType -Category (split-path $_.uri -leaf) -ODataType $_.'@odata.type'}}, @{N='name';E={If($_.licenseType){$_.displayName + ' (' + $_.licenseType + ')'}Else{$_.displayName}}},'@odata.type',@{N='Assigned';E={If('isAssigned' -in ($_ | Get-Member -MemberType NoteProperty).Name){[boolean]$_.isAssigned}}} | ft
-    $PlatformResources.type | Select -unique
-    $PlatformResources | Where type -eq 'Policy Set'
-    $PlatformResources.type
-    #>
     #get Assignments of all resource suing multithreading
     #Using -Passthru with Invoke-IDMGraphRequests will out graph data including next link and context. Value contains devices. No Passthru will out value only
     $ResourceAssignments = $PlatformResources | %{ $_.uri + '/' + $_.id + '/assignments'} | Invoke-IDMGraphRequests -Headers $AuthToken
     #$ResourceAssignments.count
-
 
     $AssignmentList= @()
     #TEST $Assignment = $ResourceAssignments[0]
@@ -1228,10 +1163,10 @@ Function Get-IDMIntuneAssignments{
         $AssignmentGroup = '' | Select Id,Name,Type,Mode,Target,Platform,Group,GroupType,GroupId,Assigned
         $AssignmentGroup.Id = $Assignment.id
         $AssignmentGroup.Name = $ReferenceResource.name
-        $AssignmentGroup.Type = $ReferenceResource.Type
+        $AssignmentGroup.Type = $ReferenceResource.type
         #$AssignmentGroup.Target = $Assignment.target
         $AssignmentGroup.Platform = $Platform
-        $AssignmentGroup.Assigned = $ReferenceResource.Assigned
+        $AssignmentGroup.Assigned = $ReferenceResource.assigned
 
         If($Assignment.intent){
             $AssignmentGroup.Mode = (Get-Culture).TextInfo.ToTitleCase($Assignment.intent)
@@ -1321,80 +1256,4 @@ Function Get-IDMIntuneAssignments{
     }#end assignment loop
 
     Return $AssignmentList
-}
-
-Function Set-IDMResourceFriendlyName{
-    Param(
-        $Name,
-        [AllowEmptyString()]
-        [string]$LicenseType,
-
-        $ODataType
-    )
-
-    If($LicenseType){$FriendlyName = $Name + ' (' + (Get-Culture).TextInfo.ToTitleCase($LicenseType) + ')'}Else{ $FriendlyName = $Name}
-
-    Switch($ODataType){
-        '#microsoft.graph.deviceEnrollmentWindowsHelloForBusinessConfiguration' {$FriendlyName = ('(WHfB) ' + $Name)}
-        '#microsoft.graph.windows10EnrollmentCompletionPageConfiguration' {$FriendlyName = ('(ESP) ' + $Name)}
-        #'#microsoft.graph.windowsUpdateForBusinessConfiguration' {$FriendlyName = ('(WUfB) ' + $Name)}
-        default { $FriendlyName = $Name}
-    }
-
-    return $FriendlyName
-}
-
-Function Set-IDMResourceFriendlyType{
-    Param(
-        $Category,
-        $ODataType
-    )
-
-    Switch($Category){
-        'windowsAutopilotDeploymentProfiles' {$FriendlyType = 'Autopilot Deployment Profile'}
-        'windowsFeatureUpdateProfiles' {$FriendlyType = 'Feature Updates'}
-        'roleScopeTags' {$FriendlyType = 'Role Tags'}
-        #'deviceEnrollmentConfigurations' {$FriendlyType = 'deviceEnrollment'}
-        'windowsInformationProtectionPolicies' {$FriendlyType = 'Windows Information Protection'}
-        'deviceManagementScripts' {$FriendlyType = 'PowerShell Scripts'}
-        'mdmWindowsInformationProtectionPolicies' {$FriendlyType = 'Windows Information Protection'}
-        'deviceCompliancePolicies' {$FriendlyType = 'Compliance Policy'}
-        'deviceHealthScripts' {$FriendlyType = 'Endpoint Analytics (Proactive Remediation)'}
-        'windowsQualityUpdateProfiles' {$FriendlyType = 'Quality Updates'}
-        'mobileApps' {$FriendlyType = 'Apps'}
-        'deviceConfigurations' {$FriendlyType = 'Configuration Profile'}
-        'policysets' {$FriendlyType = 'Policy Set'}
-        default {$FriendlyType = $Category}
-
-    }
-
-    Switch($ODataType){
-        #windows
-        '#microsoft.graph.azureADWindowsAutopilotDeploymentProfile' {$FriendlyType = ($FriendlyType + ' (Azure AD)')}
-        '#microsoft.graph.activeDirectoryWindowsAutopilotDeploymentProfile' {$FriendlyType = ($FriendlyType + ' (Hybrid Join)')}
-        '#microsoft.graph.deviceEnrollmentPlatformRestrictionsConfiguration' {$FriendlyType = 'Device Restrictions'}
-        '#microsoft.graph.deviceEnrollmentWindowsHelloForBusinessConfiguration' {$FriendlyType = '(Autopilot) Windows Hello For Business'}
-        '#microsoft.graph.windows10EnrollmentCompletionPageConfiguration' {$FriendlyType = '(Autopilot) Enrollment Status Page'}
-        '#microsoft.graph.deviceComanagementAuthorityConfiguration' {$FriendlyType = '(Autopilot) Co-Management Setting'}
-        '#microsoft.graph.deviceEnrollmentLimitConfiguration' {$FriendlyType = 'Device Limitation'}
-        '#microsoft.graph.windowsUpdateForBusinessConfiguration' {$FriendlyType = 'Windows Update for Business'}
-        '#microsoft.graph.windows10CustomConfiguration' {$FriendlyType = ($FriendlyType + ' (Custom)')}
-        '#microsoft.graph.windowsDomainJoinConfiguration' {$FriendlyType = ($FriendlyType + ' (Hybrid Domain Join)')}
-        '#microsoft.graph.windows10DeviceFirmwareConfigurationInterface' {$FriendlyType = ($FriendlyType + ' (DFCI)')}
-        '#microsoft.graph.windowsKioskConfiguration' {$FriendlyType = ($FriendlyType + ' (Kiosk)')}
-        '#microsoft.graph.sharedPCConfiguration' {$FriendlyType = ($FriendlyType + ' (Shared PC)')}
-        '#microsoft.graph.editionUpgradeConfiguration' {$FriendlyType = ($FriendlyType + ' (Edition Upgrade)')}
-        '#microsoft.graph.webApp' {$FriendlyType = ($FriendlyType + ' (Web Link)')}
-        '#microsoft.graph.officeSuiteApp' {$FriendlyType = ($FriendlyType + ' (Office 365)')}
-    }
-
-    #Common named OData Types
-    Switch -wildcard ($ODataType){
-        '*ScepCertificateProfile' {$FriendlyType = ($FriendlyType + ' (SCEP)')}
-        '*TrustedRootCertificate' {$FriendlyType = ($FriendlyType + ' (Certificate)')}
-        '*PkcsCertificateProfile' {$FriendlyType = ($FriendlyType + ' (PKCS Certificate)')}
-        '*MicrosoftEdgeApp'     {$FriendlyType = ($FriendlyType + ' (Microsoft Edge)')}
-    }
-
-    return $FriendlyType
 }
