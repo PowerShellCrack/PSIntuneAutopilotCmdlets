@@ -1170,6 +1170,7 @@ Function Get-IDMIntuneAssignments{
     #get Assignments of all resource using batch jobs
     #Using -Passthru with Invoke-IDMGraphRequests will out graph data including next link and context. Value contains devices. No Passthru will out value only
     $ResourceAssignments = $PlatformResources | %{ $_.uri + '/' + $_.id + '/assignments'} | Invoke-IDMGraphBatchRequests -Headers $AuthToken -Verbose:$VerbosePreference
+
     #$ResourceAssignments.count
 
     $AssignmentList= @()

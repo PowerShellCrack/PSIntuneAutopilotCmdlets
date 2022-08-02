@@ -12,7 +12,7 @@
     RootModule = 'IDMCmdlets.psm1'
 
     # Version number of this module.
-    ModuleVersion = '1.0.1.0'
+    ModuleVersion = '1.0.1.1'
 
     # ID used to uniquely identify this module
     GUID = 'a8428a2b-be4c-43c7-b44c-ea20d0d04490'

@@ -352,7 +352,7 @@ Function Invoke-IDMGraphBatchRequests{
                         $hashtable[$property] = $Item.$property
                     }
                     $hashtable['uri'] = "https://graph.microsoft.com/$graphApiVersion" + $batch[$i].url
-                    $hashtable['type'] = (Split-Path $Element.'@odata.context' -Leaf).replace('$metadata#','')
+                    #$hashtable['type'] = (Split-Path $Element.'@odata.context' -Leaf).replace('$metadata#','')
                     $Object = New-Object PSObject -Property $hashtable
                     $BatchResponses += $Object
                 }

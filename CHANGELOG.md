@@ -1,5 +1,9 @@
 # Change log for IDMCmdlets
 
+## 1.0.1.1 August 1, 2022
+
+- Converted Write-Error to Write-Host for Write-ErrorResponse cmdlet; solved error output
+
 ## 1.0.0.9 August 1, 2022
 
 - Added batch jobs for Devices when using -Expand for Azure requests; speeds up request

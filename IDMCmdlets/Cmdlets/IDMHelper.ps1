@@ -9,11 +9,13 @@ function Write-ErrorResponse($ErrorResponse) {
             if ($ResponseBody.StartsWith('{')) {
                 $ResponseBody = $ResponseBody | ConvertFrom-Json
             }
-            Write-Error $ResponseBody
+            Write-Host ("{0}: {1}" -f $ErrorResponse,$ResponseBody) -ForegroundColor Red
+        }Else{
+            Write-Host $ErrorResponse -ForegroundColor Red
         }
     }
     else {
-        Write-Error $ErrorResponse.ErrorDetails.Message
+        Write-Host $ErrorResponse.ErrorDetails.Message -ForegroundColor Red
     }
 }
 

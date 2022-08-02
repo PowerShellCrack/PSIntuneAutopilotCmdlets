@@ -33,11 +33,11 @@ Function Get-IDMAzureUser{
         Get-IDMGraphAuthToken -User (Connect-MSGraph).UPN
 
     .EXAMPLE
-        Get-IDMDeviceAADUser -Id '12981fe3-6049-4039-853f-e20c8d327116'
+        Get-IDMAzureUser -Id '12981fe3-6049-4039-853f-e20c8d327116'
         Returns specific user by GUID registered with Azure AD
 
     .EXAMPLE
-        Get-IDMDeviceAADUser -userPrincipleName user@domain.com
+        Get-IDMAzureUser -userPrincipleName user@domain.com
         Returns specific user by UserPrincipalName registered with Azure AD
 
     .LINK
@@ -94,14 +94,7 @@ Function Get-IDMAzureUser{
             }
         }
         catch {
-            $ex = $_.Exception
-            $errorResponse = $ex.Response.GetResponseStream()
-            $reader = New-Object System.IO.StreamReader($errorResponse)
-            $reader.BaseStream.Position = 0
-            $reader.DiscardBufferedData()
-            $responseBody = $reader.ReadToEnd();
-            Write-Host "Response content:`n$responseBody" -f Red
-            Write-Error ("Request to {0} failed with HTTP Status: {1} {2}" -f $Uri,$ex.Response.StatusCode,$ex.Response.StatusDescription)
+            Write-ErrorResponse($_)
         }
     }
     End{
@@ -362,8 +355,7 @@ function Set-IDMDeviceAssignedUser {
 
         try {
             Write-Verbose "Get $uri"
-            $response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Post -Body $JSON -ErrorAction Stop
-
+            $null = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Post -Body $JSON -ErrorAction Stop
         } catch {
             Write-ErrorResponse($_)
         }
