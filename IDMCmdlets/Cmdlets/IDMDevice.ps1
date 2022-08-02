@@ -339,7 +339,7 @@ Function Get-IDMDevices{
             $AzureDevicesUris += "https://graph.microsoft.com/$graphApiVersion/devices?`$filter=displayName eq '$($Item.deviceName)'"
         }
         #invoke a query on all
-        $AzureDevices = $AzureDevicesUris | Invoke-IDMGraphRequests -Headers $AuthToken
+        $AzureDevices = $AzureDevicesUris | Invoke-IDMGraphBatchRequests -Headers $AuthToken -Verbose:$VerbosePreference
 
         #TEST $Item = $Response.Value | Where deviceName -eq 'DTOLAB-46VEYL1'
         Foreach($Item in $Response.Value)
@@ -1071,6 +1071,7 @@ Function Get-IDMIntuneAssignments{
     If($TargetSet)
     {
         $UriResources += $TargetSet.GetEnumerator() | %{"https://graph.microsoft.com/$graphApiVersion/$($_.Name)/$($_.Value)/memberOf"}
+
     }
     Else{
         $UriResources += "https://graph.microsoft.com/$graphApiVersion/$($Target.ToLower())/memberOf"
@@ -1089,6 +1090,7 @@ Function Get-IDMIntuneAssignments{
                 )
 
                 $PlatformComponents = @(
+                    #'deviceManagement/advancedThreatProtectionOnboardingStateSummary'
                     'deviceManagement/windowsAutopilotDeploymentProfiles'
                     'deviceManagement/deviceCompliancePolicies'
                     'deviceManagement/deviceComplianceScripts'
@@ -1097,12 +1099,14 @@ Function Get-IDMIntuneAssignments{
                     'deviceManagement/deviceHealthScripts'
                     'deviceManagement/deviceManagementScripts'
                     'deviceManagement/roleScopeTags'
+                    #'deviceManagement/windowsDriverUpdateProfiles'
                     'deviceManagement/windowsQualityUpdateProfiles'
                     'deviceManagement/windowsFeatureUpdateProfiles'
                     'deviceAppManagement/windowsInformationProtectionPolicies'
                     'deviceAppManagement/mdmWindowsInformationProtectionPolicies'
                     'deviceAppManagement/mobileApps'
                     'deviceAppManagement/policysets'
+                    #'deviceAppManagement/assignmentFilters'
                 )
         }
 
@@ -1110,26 +1114,41 @@ Function Get-IDMIntuneAssignments{
                                     'webApp',
                                     'aosp'
                                     )
-        }
+                $PlatformComponents = @(
+                    'deviceManagement/androidDeviceOwnerEnrollmentProfiles'
+                    'deviceAppManagement/androidForWorkAppConfigurationSchemas'
+                    'deviceAppManagement/androidForWorkEnrollmentProfiles'
+                    'deviceAppManagement/androidForWorkSettings'
+                    'deviceAppManagement/androidManagedStoreAccountEnterpriseSettings'
+                    'deviceAppManagement/androidManagedStoreAppConfigurationSchemas'
+                )
+    }
 
         'MacOS'   {$PlatformType = @('IOS',
                                     'macOS',
                                     'webApp'
                                     )
+                $PlatformComponents = @(
+
+                )
         }
 
         'iOS'     {$PlatformType = @('ios',
                                     'webApp'
                                     )
+                $PlatformComponents = @(
+
+                )
         }
     }
 
     #Add component URIs
     $UriResources += $PlatformComponents | %{ "https://graph.microsoft.com/$graphApiVersion/$($_)"}
-
-    #Using -Passthru with Invoke-IDMGraphRequests will out graph data including next link and context. Value contains devices. No Passthru will out value only
+    Write-Verbose ($UriResources -join ',')
+    #Using -Passthru with Invoke-IDMGraphRequests will out graph data including next link and context.
+    #No Passthru will out value only
     #$GraphRequests = $UriResources | Invoke-IDMGraphRequests -Headers $AuthToken -Threads $UriResources.Count
-    $GraphRequests = $UriResources | Invoke-IDMGraphBatchRequests -Headers $AuthToken
+    $GraphRequests = $UriResources | Invoke-IDMGraphBatchRequests -Headers $AuthToken -Verbose:$VerbosePreference
     #$GraphRequests = $UriResources | Invoke-IDMGraphRequests -Headers $AuthToken
 
     $DeviceGroups = ($GraphRequests | Where {$_.uri -like '*/devices/*/memberOf'})
@@ -1148,9 +1167,9 @@ Function Get-IDMIntuneAssignments{
                                                 @{N='name';E={Set-IDMResourceFriendlyName -Name $_.displayName -LicenseType $_.licenseType -ODataType $_.'@odata.type'}},
                                                 @{N='assigned';E={If('isAssigned' -in ($_ | Get-Member -MemberType NoteProperty).Name){[boolean]$_.isAssigned}Else{'Unknown'}}}
 
-    #get Assignments of all resource suing multithreading
+    #get Assignments of all resource using batch jobs
     #Using -Passthru with Invoke-IDMGraphRequests will out graph data including next link and context. Value contains devices. No Passthru will out value only
-    $ResourceAssignments = $PlatformResources | %{ $_.uri + '/' + $_.id + '/assignments'} | Invoke-IDMGraphRequests -Headers $AuthToken
+    $ResourceAssignments = $PlatformResources | %{ $_.uri + '/' + $_.id + '/assignments'} | Invoke-IDMGraphBatchRequests -Headers $AuthToken -Verbose:$VerbosePreference
     #$ResourceAssignments.count
 
     $AssignmentList= @()

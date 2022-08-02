@@ -50,6 +50,7 @@ Function Set-IDMResourceFriendlyType{
     )
 
     Switch($Category){
+        'advancedThreatProtectionOnboardingStateSummary' {$FriendlyType = 'Windows Defender Advanced Threat Protection Onboarding'}
         'windowsAutopilotDeploymentProfiles' {$FriendlyType = 'Autopilot Deployment Profile'}
         'windowsFeatureUpdateProfiles' {$FriendlyType = 'Feature Updates'}
         'roleScopeTags' {$FriendlyType = 'Role Tags'}

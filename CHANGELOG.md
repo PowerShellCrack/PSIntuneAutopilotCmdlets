@@ -2,7 +2,12 @@
 
 ## 1.0.0.9 August 1, 2022
 
-- Fixed Invoke-IDMGraphBatchRequests and Invoke-IDMGraphRequests passthru output for assigments
+- Added batch jobs for Devices when using -Expand for Azure requests; speeds up request
+- Fixed Intune assignments for each resource; missing batch request
+
+## 1.0.0.9 August 1, 2022
+
+- Fixed Invoke-IDMGraphBatchRequests and Invoke-IDMGraphRequests passthru output for assignments
 - Sped up loop using hashtables instead of objects by several seconds
 - Fixed Set-IDMResourceFriendlyName ouput; name or friendlyname
 - Added IncludeGuest option for Get-IDMAzureUsers; defaults to members only
