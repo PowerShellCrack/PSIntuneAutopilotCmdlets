@@ -1040,6 +1040,45 @@ Function Remove-IDMDeviceRecords{
 
 
 Function Get-IDMIntuneAssignments{
+    <#
+    .SYNOPSIS
+    This function is used to retrieve all assignments from Intune for both device and users
+
+    .DESCRIPTION
+    The function connects to the Graph API Interface and retrieves all assignments from Intune for both device and users
+
+    .PARAMETER Target
+        [Devices | Users]. Specify which assignment to pull.
+
+    .PARAMETER Target
+        [Device | User]. Specify which assignment to pull. Target id is associated
+
+    .PARAMETER TargetId
+        Must be in guid format. SHould be id of device or id of user
+
+    .PARAMETER TargetSet
+        Must be in hashtable format. Should contain an id of device and/or id of user
+        eg. @{devices='b215decf-4188-4d19-9e22-fb2e89ae0fec';users='c9d00ac2-b07d-4477-961b-442bbc424586'}
+
+    .PARAMETER AuthToken
+        Defaults to $Global:AuthToken
+        Header for Graph bearer token. Must be in hashtable format:
+        Name            Value
+        ----            -----
+        Authorization = 'Bearer eyJ0eXAiOiJKV1QiLCJub25jZSI6ImVhMnZPQjlqSmNDOTExcVJtNE1EaEpCd2YyVmRyNXlodjRqejFOOUZhNmciLCJhbGci...'
+        Content-Type = 'application/json'
+        ExpiresOn = '7/29/2022 7:55:14 PM +00:00'
+
+        Use command:
+        Get-IDMGraphAuthToken -User (Connect-MSGraph).UPN
+
+
+    .EXAMPLE
+    $targetSet = @{devices=$syncHash.Data.SelectedDevice.azureADObjectId;users=$syncHash.Data.AssignedUser.id}
+    $platform = $syncHash.Data.SelectedDevice.OperatingSystem
+
+    Get-IDMIntuneAssignments -TargetSet $targetSet -Platform $platform -AuthToken $syncHash.Data.AuthToken -IncludePolicySetInherits
+    #>
     [cmdletbinding()]
     Param(
         [Parameter(Mandatory=$true,ParameterSetName='TargetArea')]
@@ -1071,7 +1110,6 @@ Function Get-IDMIntuneAssignments{
     If($TargetSet)
     {
         $UriResources += $TargetSet.GetEnumerator() | %{"https://graph.microsoft.com/$graphApiVersion/$($_.Name)/$($_.Value)/memberOf"}
-
     }
     Else{
         $UriResources += "https://graph.microsoft.com/$graphApiVersion/$($Target.ToLower())/memberOf"
@@ -1095,6 +1133,7 @@ Function Get-IDMIntuneAssignments{
                     'deviceManagement/deviceCompliancePolicies'
                     'deviceManagement/deviceComplianceScripts'
                     'deviceManagement/deviceConfigurations'
+                    'deviceManagement/configurationPolicies'
                     'deviceManagement/deviceEnrollmentConfigurations'
                     'deviceManagement/deviceHealthScripts'
                     'deviceManagement/deviceManagementScripts'
@@ -1124,7 +1163,7 @@ Function Get-IDMIntuneAssignments{
                 )
     }
 
-        'MacOS'   {$PlatformType = @('IOS',
+        'MacOS'   {$PlatformType = @('ios',
                                     'macOS',
                                     'webApp'
                                     )
@@ -1145,6 +1184,8 @@ Function Get-IDMIntuneAssignments{
     #Add component URIs
     $UriResources += $PlatformComponents | %{ "https://graph.microsoft.com/$graphApiVersion/$($_)"}
     Write-Verbose ($UriResources -join ',')
+
+    #BATCH CALL #1: Do a batch call on device,users and platform resources to get all properties
     #Using -Passthru with Invoke-IDMGraphRequests will out graph data including next link and context.
     #No Passthru will out value only
     #$GraphRequests = $UriResources | Invoke-IDMGraphRequests -Headers $AuthToken -Threads $UriResources.Count
@@ -1161,16 +1202,19 @@ Function Get-IDMIntuneAssignments{
     $AllGroupMembers = @()
     $AllGroupMembers = $DeviceGroupMembers + $UserGroupMembers
 
+    #NOW Build platform resources based on graph info
     $PlatformResources = ($GraphRequests | Where {$_.'@odata.type' -match ($PlatformType -join '|')}) |
                                             Select Id,uri,
                                                 @{N='type';E={Set-IDMResourceFriendlyType -Category (split-path $_.uri -leaf) -ODataType $_.'@odata.type'}},
                                                 @{N='name';E={Set-IDMResourceFriendlyName -Name $_.displayName -LicenseType $_.licenseType -ODataType $_.'@odata.type'}},
                                                 @{N='assigned';E={If('isAssigned' -in ($_ | Get-Member -MemberType NoteProperty).Name){[boolean]$_.isAssigned}Else{'Unknown'}}}
 
-    #get Assignments of all resource using batch jobs
+    #BATCH CALL #2: get Assignments of all resource using batch jobs.
     #Using -Passthru with Invoke-IDMGraphRequests will out graph data including next link and context. Value contains devices. No Passthru will out value only
-    $ResourceAssignments = $PlatformResources | %{ $_.uri + '/' + $_.id + '/assignments'} | Invoke-IDMGraphBatchRequests -Headers $AuthToken -Verbose:$VerbosePreference
-
+    #batch jobs can only be ran in series of 20; split collection up and process each group
+    $ResourceAssignments = $PlatformResources | %{ $_.uri + '/' + $_.id + '/assignments'} |
+                Split-IDMRequests -GroupOf 20 | ForEach-Object { $_ | Invoke-IDMGraphBatchRequests -Headers $AuthToken -Verbose:$VerbosePreference}
+    #$ResourceAssignments = $PlatformResources | Invoke-IDMGraphRequests -Headers $AuthToken -Verbose:$VerbosePreference
     #$ResourceAssignments.count
 
     $AssignmentList= @()

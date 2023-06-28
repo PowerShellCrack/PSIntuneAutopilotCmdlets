@@ -1,5 +1,6 @@
 #https://stackoverflow.com/questions/18771424/how-to-get-powershell-invoke-restmethod-to-return-body-of-http-500-code-response
 function Write-ErrorResponse($ErrorResponse) {
+
     if ($PSVersionTable.PSVersion.Major -lt 6) {
         if ($ErrorResponse.Exception.Response) {
             $Reader = New-Object System.IO.StreamReader($ErrorResponse.Exception.Response.GetResponseStream())
@@ -21,6 +22,7 @@ function Write-ErrorResponse($ErrorResponse) {
 
 
 Function Set-IDMResourceFriendlyName{
+
     Param(
         $Name,
         [AllowEmptyString()]
@@ -46,6 +48,7 @@ Function Set-IDMResourceFriendlyName{
 }
 
 Function Set-IDMResourceFriendlyType{
+
     Param(
         $Category,
         $ODataType
@@ -99,4 +102,66 @@ Function Set-IDMResourceFriendlyType{
     }
 
     return $FriendlyType
+}
+
+
+function Split-IDMRequests {
+    <#
+    .SYNOPSIS
+    Split an array into groups
+
+    .PARAMETER CollectionUri
+    Provide Uri in array format
+
+    .PARAMETER GroupOf
+    Set the amount each  grouped array will consist of. Graph Batch process cap is 20.
+
+    .EXAMPLE
+     $Uri = @(
+            'https://graph.microsoft.com/beta/deviceManagement/deviceCompliancePolicies'
+            'https://graph.microsoft.com/beta/deviceManagement/deviceComplianceScripts'
+            'https://graph.microsoft.com/beta/deviceManagement/deviceConfigurations'
+            'https://graph.microsoft.com/beta/deviceManagement/deviceEnrollmentConfigurations'
+            'https://graph.microsoft.com/beta/deviceManagement/deviceHealthScripts'
+            'https://graph.microsoft.com/beta/deviceManagement/deviceManagementScripts'
+            'https://graph.microsoft.com/beta/deviceManagement/roleScopeTags'
+            'https://graph.microsoft.com/beta/deviceManagement/windowsQualityUpdateProfiles'
+            'https://graph.microsoft.com/beta/deviceManagement/windowsFeatureUpdateProfiles'
+            'https://graph.microsoft.com/beta/deviceAppManagement/windowsInformationProtectionPolicies'
+            'https://graph.microsoft.com/beta/deviceAppManagement/mdmWindowsInformationProtectionPolicies'
+            'https://graph.microsoft.com/beta/deviceAppManagement/mobileApps'
+            'https://graph.microsoft.com/beta/deviceAppManagement/policysets'
+    )
+    $Uri | %{ $_.uri + '/' + $_.id + '/assignments'} |
+                Split-IDMRequests -GroupOf 20 | ForEach-Object { $_ | Invoke-IDMGraphBatchRequests -Headers $AuthToken -Verbose:$VerbosePreference}
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
+        [array]$CollectionUri,
+
+        [Parameter(Mandatory=$false)]
+        [ValidateRange(1, 20)]
+        [int] $GroupOf = 20
+    )
+    begin {
+        $Ctr = 0
+        $Array = @()
+        $TempArray = @()
+    }
+    process {
+        foreach ($e in $CollectionUri) {
+            if (++$Ctr -eq $GroupOf) {
+                $Ctr = 0
+                $Array += , @($TempArray + $e)
+                $TempArray = @()
+                continue
+            }
+            $TempArray += $e
+        }
+    }
+    end {
+        if ($TempArray) { $Array += , $TempArray }
+        return $Array
+    }
 }

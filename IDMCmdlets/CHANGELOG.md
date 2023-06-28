@@ -1,8 +1,10 @@
 # Change log for IDMCmdlets
 
-## 1.0.1.1 August 1, 2022
+## 1.0.1.2 August 2, 2022
 
 - Converted Write-Error to Write-Host for Write-ErrorResponse cmdlet; solved error output
+- Addws Split-IDMRequests cmdlet; Fixed assignment output for batch calls of 20 uris at a time.
+- Added synopsis to most cmdlets
 
 ## 1.0.0.9 August 1, 2022
 

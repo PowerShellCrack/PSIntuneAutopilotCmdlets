@@ -134,8 +134,10 @@ function Get-IDMGraphAuthToken{
     #$adal = Join-Path $AadModule.ModuleBase "Microsoft.IdentityModel.Clients.ActiveDirectory.dll"
     #$adalforms = Join-Path $AadModule.ModuleBase "Microsoft.IdentityModel.Clients.ActiveDirectory.Platform.dll"
 
-    [System.Reflection.Assembly]::LoadFrom($adal) | Out-Null
-    [System.Reflection.Assembly]::LoadFrom($adalforms) | Out-Null
+    try {
+        [System.Reflection.Assembly]::LoadFrom($adal) | Out-Null
+        [System.Reflection.Assembly]::LoadFrom($adalforms) | Out-Null
+    }Catch{}
     $clientId = "d1ddf0e4-d672-4dae-b554-9d5bdfd93547"
     $redirectUri = "urn:ietf:wg:oauth:2.0:oob"
     $resourceAppIdURI = "https://graph.microsoft.com"
@@ -291,6 +293,7 @@ Function Invoke-IDMGraphBatchRequests{
     .EXAMPLE
         Invoke-IDMGraphBatchRequests -Uri 'https://graph.microsoft.com/beta/deviceManagement/managedDevices' -Headers $Global:AuthToken -Passthru
 
+
     .LINK
         https://docs.microsoft.com/en-us/graph/sdks/batch-requests?tabs=csharp
         https://docs.microsoft.com/en-us/graph/json-batching
@@ -322,6 +325,7 @@ Function Invoke-IDMGraphBatchRequests{
             $i++
             $batch += $URLRequests
         }
+        
     }
     End{
         $BatchProperties.requests = $batch
