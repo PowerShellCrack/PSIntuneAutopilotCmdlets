@@ -19,27 +19,27 @@ Function Get-IDMAutopilotProfile{
     param
     (
         [Parameter(Mandatory=$false)]
-        $id,
-
-        [Parameter(Mandatory=$false)]
-        $AuthToken = $Global:AuthToken
+        $id
     )
 
     # Defining Variables
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
 
+    # If the ID is set, get the specific profile
     if ($id) {
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$id"
+        $uri = "$Global:graphEndpoint/$graphApiVersion/$Resource/$id"
     }
     else {
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource"
+        $uri = "$Global:graphEndpoint/$graphApiVersion/$Resource"
     }
+
+    # add method to the request, Exclude URI from the request so that it won't concflict with nextLink URI
 
     Write-Verbose "GET $uri"
 
     try {
-        $response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Get -ErrorAction Stop
+        $response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
         if ($id) {
             $response
         }
@@ -48,8 +48,8 @@ Function Get-IDMAutopilotProfile{
 
             $devicesNextLink = $response."@odata.nextLink"
 
-            while ($devicesNextLink -ne $null){
-                $devicesResponse = (Invoke-RestMethod -Uri $devicesNextLink -Headers $AuthToken -Method Get)
+            while ($null -ne $devicesNextLink){
+                $devicesResponse = (Invoke-MgGraphRequest -Uri $devicesNextLink -Method Get)
                 $devicesNextLink = $devicesResponse."@odata.nextLink"
                 $devices += $devicesResponse.value
             }
@@ -97,10 +97,7 @@ Function Get-IDMAutopilotDevice{
         $serial,
 
         [Parameter(Mandatory=$false)]
-        [Switch]$expand,
-
-        [Parameter(Mandatory=$false)]
-        $AuthToken = $Global:AuthToken
+        [Switch]$expand
     )
 
     Process {
@@ -110,23 +107,23 @@ Function Get-IDMAutopilotDevice{
         $Resource = "deviceManagement/windowsAutopilotDeviceIdentities"
 
         if ($id -and $expand) {
-            $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)/$($id)?`$expand=deploymentProfile,intendedDeploymentProfile"
+            $uri = "$Global:graphEndpoint/$graphApiVersion/$($Resource)/$($id)?`$expand=deploymentProfile,intendedDeploymentProfile"
         }
         elseif ($id) {
-            $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)/$id"
+            $uri = "$Global:graphEndpoint/$graphApiVersion/$($Resource)/$id"
         }
         elseif ($serial) {
             $encoded = [uri]::EscapeDataString($serial)
-            $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)?`$filter=contains(serialNumber,'$encoded')"
+            $uri = "$Global:graphEndpoint/$graphApiVersion/$($Resource)?`$filter=contains(serialNumber,'$encoded')"
         }
         else {
-            $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)"
+            $uri = "$Global:graphEndpoint/$graphApiVersion/$($Resource)"
         }
 
         Write-Verbose "GET $uri"
 
         try {
-            $response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Get -ErrorAction Stop
+            $response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
             if ($id) {
                 $response
             }
@@ -134,8 +131,8 @@ Function Get-IDMAutopilotDevice{
                 $devices = $response.value
                 $devicesNextLink = $response."@odata.nextLink"
 
-                while ($devicesNextLink -ne $null){
-                    $devicesResponse = (Invoke-RestMethod -Uri $devicesNextLink -Headers $AuthToken -Method Get -ErrorAction Stop)
+                while ($null -ne $devicesNextLink){
+                    $devicesResponse = (Invoke-MgGraphRequest -Uri $devicesNextLink -Method Get -ErrorAction Stop)
                     $devicesNextLink = $devicesResponse."@odata.nextLink"
                     $devices += $devicesResponse.value
                 }
@@ -192,10 +189,7 @@ Function Set-IDMAutopilotDeviceTag{
         $AutopilotID,
 
         [Parameter(Mandatory=$false)]
-        $GroupTag = $null,
-
-        [Parameter(Mandatory=$false)]
-        $AuthToken = $Global:AuthToken
+        $GroupTag
     )
     Begin{
          # Defining Variables
@@ -204,7 +198,7 @@ Function Set-IDMAutopilotDeviceTag{
     }
     Process {
         #TEST $uri = "https://graph.microsoft.com/beta/deviceManagement/windowsAutopilotDeviceIdentities/c50d642a-e8d7-4f84-9dc2-3540303b1acf/UpdateDeviceProperties"
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource/$AutopilotID/UpdateDeviceProperties"
+        $uri = "$Global:graphEndpoint/$graphApiVersion/$Resource/$AutopilotID/UpdateDeviceProperties"
 
         $requestBody = @{ groupTag = $groupTag }
         $BodyJson = $requestBody | ConvertTo-Json
@@ -217,7 +211,7 @@ Function Set-IDMAutopilotDeviceTag{
 
         try {
             Write-Verbose "GET $uri"
-            $null = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Body $BodyJson -Method POST -ErrorAction Stop
+            $null = Invoke-MgGraphRequest -Uri $uri -Body $BodyJson -Method POST -ErrorAction Stop
         }
         catch {
             Write-ErrorResponse($_)

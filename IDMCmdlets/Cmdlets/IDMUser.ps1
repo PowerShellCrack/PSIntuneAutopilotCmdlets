@@ -56,10 +56,7 @@ Function Get-IDMAzureUser{
 
         [Parameter(Mandatory=$false)]
         [ValidateSet('id','userPrincipalName','surname','officeLocation','mail','displayName','givenName')]
-        [String]$Property,
-
-        [Parameter(Mandatory=$false)]
-        $AuthToken = $Global:AuthToken
+        [String]$Property
     )
     Begin{
         # Defining Variables
@@ -78,18 +75,18 @@ Function Get-IDMAzureUser{
             {
                 $uri = "https://graph.microsoft.com/$graphApiVersion/$($User_resource)"
                 Write-Verbose $uri
-                $Response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Get -ErrorAction Stop
+                $Response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
             }
             else {
                 if([string]::IsNullOrEmpty($Property)){
                     $uri = "https://graph.microsoft.com/$graphApiVersion/$($User_resource)/$QueryBy"
                     Write-Verbose $uri
-                    $Response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Get -ErrorAction Stop
+                    $Response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
                 }
                 else {
                     $uri = "https://graph.microsoft.com/$graphApiVersion/$($User_resource)/$QueryBy/$Property"
                     Write-Verbose $uri
-                    $Response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Get -ErrorAction Stop
+                    $Response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
                 }
             }
         }
@@ -162,10 +159,7 @@ Function Get-IDMAzureUsers{
         [ValidateSet('UserPrincipalName','SurName','EMailAddress','SearchDisplayName')]
         [string]$FilterBy = 'UserPrincipalName',
 
-        [switch]$IncludeGuests,
-
-        [Parameter(Mandatory=$false)]
-        $AuthToken = $Global:AuthToken
+        [switch]$IncludeGuests
     )
     Begin{
         # Defining Variables
@@ -201,7 +195,7 @@ Function Get-IDMAzureUsers{
 
         try {
             Write-Verbose "Get $uri"
-            $response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Get -ErrorAction Stop
+            $response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
         }
         catch {
             Write-ErrorResponse($_)
@@ -249,10 +243,7 @@ Function Get-IDMDeviceAssignedUser{
     param
     (
         [Parameter(Mandatory=$True,ValueFromPipelineByPropertyName=$true,ValueFromPipeline=$true)]
-        $DeviceID,
-
-        [Parameter(Mandatory=$false)]
-        $AuthToken = $Global:AuthToken
+        $DeviceID
     )
     Begin{
         # Defining Variables
@@ -264,7 +255,7 @@ Function Get-IDMDeviceAssignedUser{
         try {
             $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)"
             Write-Verbose "Get $uri"
-            $response = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Get -ErrorAction Stop
+            $response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
         }
         catch {
             Write-ErrorResponse($_)
@@ -333,10 +324,7 @@ function Set-IDMDeviceAssignedUser {
 
         [Parameter(Mandatory=$True,ParameterSetName='UPN')]
         [Alias('User','EMail')]
-        [System.Net.Mail.MailAddress]$UPN,
-
-        [Parameter(Mandatory=$false)]
-        $AuthToken = $Global:AuthToken
+        [System.Net.Mail.MailAddress]$UPN
     )
     Begin{
         $graphApiVersion = "beta"
@@ -355,7 +343,7 @@ function Set-IDMDeviceAssignedUser {
 
         try {
             Write-Verbose "Get $uri"
-            $null = Invoke-RestMethod -Uri $uri -Headers $AuthToken -Method Post -Body $JSON -ErrorAction Stop
+            $null = Invoke-MgGraphRequest -Uri $uri -Method Post -Body $JSON -ErrorAction Stop
         } catch {
             Write-ErrorResponse($_)
         }

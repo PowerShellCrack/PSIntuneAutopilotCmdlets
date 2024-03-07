@@ -1,5 +1,10 @@
 # Change log for IDMCmdlets
 
+## 1.0.1.4 March 7, 2024
+
+- Fixed graph tokens for user and apps; removed auth token requirement
+- Added new graph app creation script with appropriate Azure and Intune permissions
+
 ## 1.0.1.2 August 2, 2022
 
 - Converted Write-Error to Write-Host for Write-ErrorResponse cmdlet; solved error output

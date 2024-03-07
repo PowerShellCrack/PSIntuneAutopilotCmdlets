@@ -1,4 +1,4 @@
-#https://stackoverflow.com/questions/18771424/how-to-get-powershell-invoke-restmethod-to-return-body-of-http-500-code-response
+#https://stackoverflow.com/questions/18771424/how-to-get-powershell-Invoke-MgGraphRequest-to-return-body-of-http-500-code-response
 function Write-ErrorResponse($ErrorResponse) {
 
     if ($PSVersionTable.PSVersion.Major -lt 6) {
@@ -133,7 +133,7 @@ function Split-IDMRequests {
             'https://graph.microsoft.com/beta/deviceAppManagement/policysets'
     )
     $Uri | %{ $_.uri + '/' + $_.id + '/assignments'} |
-                Split-IDMRequests -GroupOf 20 | ForEach-Object { $_ | Invoke-IDMGraphBatchRequests -Headers $AuthToken -Verbose:$VerbosePreference}
+                Split-IDMRequests -GroupOf 20 | ForEach-Object { $_ | Invoke-IDMGraphBatchRequests -Verbose:$VerbosePreference}
     #>
     [CmdletBinding()]
     param(

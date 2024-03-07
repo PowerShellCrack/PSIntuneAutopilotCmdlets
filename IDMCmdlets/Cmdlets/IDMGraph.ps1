@@ -1,4 +1,134 @@
-Function Connect-IDMGraphApp {
+Function New-IDMGraphApp{
+    <#
+    .SYNOPSIS
+    Creates a new Azure AD app registration with the necessary permissions for Intune device management.
+
+    .PARAMETER CloudEnvironment
+    Specifies the cloud environment to use. Valid values are Public, USGov, USGovDoD.
+
+    .PARAMETER appNamePrefix
+    Specifies the prefix for the app name. The app name will be the prefix plus a random identifier.
+
+    .EXAMPLE
+    New-IDMGraphApp -CloudEnvironment Public -appNamePrefix "IntuneDeviceManagerApp"
+    Creates a new app registration in the public cloud with the name "IntuneDeviceManagerApp-<random identifier>"
+    
+    .LINK
+    https://learn.microsoft.com/en-us/powershell/microsoftgraph/app-only?view=graph-powershell-1.0&tabs=azure-portal
+    https://learn.microsoft.com/en-us/troubleshoot/azure/active-directory/verify-first-party-apps-sign-in
+    https://learn.microsoft.com/en-us/graph/api/serviceprincipal-post-approleassignments?view=graph-rest-1.0&tabs=powershell#request
+    https://learn.microsoft.com/en-us/azure/azure-resource-manager/templates/template-tutorial-deployment-script?tabs=CLI
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)]
+        [ValidateSet('Public','Global','USGov','USGovDoD')]
+        [string] $CloudEnvironment = 'Global',
+
+        [Parameter(Mandatory = $false)]
+        $AppNamePrefix = "IntuneDeviceManagerApp",
+
+        [Parameter(Mandatory = $false)]
+        [switch]$AsHashTable
+    )
+    $ErrorActionPreference = 'Stop'
+
+    #Requires -Modules Microsoft.Graph.Authentication,Microsoft.Graph.Applications
+
+    Switch($CloudEnvironment){
+        'Public' {$GraphEnvironment = 'Global'}
+        'USGov' { $GraphEnvironment = 'USGov'}
+        'USGoDoD' { $GraphEnvironment = 'USGovDoD'}
+        default { $GraphEnvironment = 'Global'}
+    }
+
+    #Connect to Graph
+    Write-Host ("Connecting to Graph...") -ForegroundColor Cyan -NoNewline
+    Connect-MgGraph -Environment $GraphEnvironment -Scopes "Application.ReadWrite.All","User.Read" -NoWelcome
+    Write-Host ("done") -ForegroundColor Green
+
+    $TenantID = Get-MgContext | Select-Object -Property TenantId
+    #Set variables for the app
+    $startDate = Get-Date
+    $endDate = $startDate.AddYears(1)
+    $randomIdentifier = (New-Guid).ToString().Substring(0,8)
+    $appName = ($AppNamePrefix  + '-' + $randomIdentifier)
+
+    #Get Role id for DeviceManagementConfiguration.ReadWrite.All
+    #$GraphResourceId = "d1ddf0e4-d672-4dae-b554-9d5bdfd93547" #Microsoft Intune PowerShell
+    #$GraphResourceId = "14d82eec-204b-4c2f-b7e8-296a70dab67e" #Microsoft Graph PowerShell
+    #$GraphResourceId = "0000000a-0000-0000-c000-000000000000" #Microsoft Intune
+    $GraphResourceId = "00000003-0000-0000-c000-000000000000" #Microsoft Graph
+    $GraphServicePrincipal = Get-MgServicePrincipal -Filter "AppId eq '$GraphResourceId'"
+    #$GraphServicePrincipal = (Get-MgServicePrincipal -Filter "DisplayName eq 'Microsoft Graph'")
+    $Permissions = $GraphServicePrincipal.AppRoles | Where-Object {$_.value -in $script:GraphScopes}
+
+    # Create app registration
+    Write-Host ("Creating app registration named: {0}..." -f $appName) -ForegroundColor White -NoNewline
+    $app = New-MgApplication -DisplayName $appName -AppRoles $Permissions
+
+    # Azure doesn't always update immediately, make sure app exists before we try to update its config
+    $appExists = $false
+    while (!$appExists) {
+        Write-Host "." -NoNewline -ForegroundColor White
+        Start-Sleep -Seconds 2
+        $appExists = Get-MgApplication -ApplicationId $app.Id
+    }
+    Write-Host ("{0}" -f $app.AppId) -ForegroundColor Green
+
+
+    #Create the client secret
+    $PasswordCredentials = @{
+        StartDateTime = $startDate 
+        EndDateTime = $endDate
+        DisplayName = ($appNamePrefix + "_" + ($startDate).ToUniversalTime().ToString("yyyyMMdd"))
+    }
+    Write-Host ("Generating app secret with name: {0}..." -f $PasswordCredentials.DisplayName) -ForegroundColor White -NoNewline
+    $ClientSecret = Add-MgApplicationPassword -ApplicationId $app.Id -PasswordCredential $PasswordCredentials
+    #$ClientSecret | Select-Object -ExpandProperty SecretText
+    Write-Host ("done: {0}..." -f $ClientSecret.SecretText.Substring(0,7)) -ForegroundColor Green
+
+
+    Write-Host ("Create corresponding service principal..") -ForegroundColor White -NoNewline
+    # Create corresponding service principal
+    $appSp = New-MgServicePrincipal -AppId $app.AppId
+    Write-Host ("done") -ForegroundColor Green
+
+
+    #Grant the DeviceManagementConfiguration.ReadWrite.All permisssions to api
+    #TEST $Permission = $Permissions[0]
+    Foreach($Permission in $Permissions){
+        Write-Host ("Granting permissions to app: {0}..." -f $Permission.Value) -ForegroundColor White -NoNewline
+        $params = @{
+            "PrincipalId" = $appSp.id                       #ObjectID of the enterprise app for my app registration
+            "ResourceId" = $GraphServicePrincipal.Id        #ID of graph service principal ID in my tenant
+            "AppRoleId" = $Permission.Id                    #ID of the graph role
+        }
+        $null = New-MgServicePrincipalAppRoleAssignment -ServicePrincipalId $appSp.id -BodyParameter $params
+        Write-Host ("done") -ForegroundColor Green
+    }
+
+    $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
+
+    Write-Host ("App registration created!") -ForegroundColor Cyan 
+    
+    #build object to return
+    $appdetails = "" | Select-Object AppId,AppSecret,TenantID,CloudEnvironment
+    $appdetails.TenantID = $TenantID.TenantId
+    $appdetails.AppId = $app.AppId
+    $appdetails.AppSecret = $ClientSecret.SecretText
+    $appdetails.CloudEnvironment = $CloudEnvironment
+
+    If($AsHashTable){
+        $ht2 = @{}
+        $appdetails = $appdetails.psobject.properties | Foreach { $ht2[$_.Name] = $_.Value }
+        return $ht2
+    }Else{
+        return $appdetails
+    }
+}
+
+Function Get-IDMGraphAppAuthToken {
     <#
     .SYNOPSIS
     Authenticates to the Graph API via the Microsoft.Graph.Intune module using app-based authentication.
@@ -18,12 +148,17 @@ Function Connect-IDMGraphApp {
     Specifies the Azure AD app secret corresponding to the app ID that will be used to authenticate.
 
     .EXAMPLE
-    Connect-IDMGraphApp -TenantId $TenantID -AppId $app -AppSecret $secret
+    $app = New-IDMGraphApp -CloudEnvironment Public -appNamePrefix "IntuneDeviceManagerApp" -AsHashTable
+    $token = Get-IDMGraphAppAuthToken @app -ReturnToken
     #>
 
     [cmdletbinding()]
     param
     (
+        [Parameter(Mandatory = $false)]
+        [ValidateSet('Public','Global','USGov','USGovDoD')]
+        [string] $CloudEnvironment = 'Global',
+
         [Parameter(Mandatory=$true)]
         [Alias('ClientId')]
         [String]$AppId,
@@ -34,29 +169,28 @@ Function Connect-IDMGraphApp {
 
         [Parameter(Mandatory=$true)]
         [Alias('ClientSecret')]
-        [String]$AppSecret
+        [String]$AppSecret,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$ReturnToken
     )
+
+    switch ($CloudEnvironment) {
+        'Global' {$AzureEndpoint = 'https://login.microsoftonline.com';$graphEndpoint = 'https://graph.microsoft.com'}
+        'USGov' {$AzureEndpoint = 'https://login.microsoftonline.us';$graphEndpoint = 'https://graph.microsoft.us'}
+        'USGovDoD' {$AzureEndpoint = 'https://login.microsoftonline.us';$graphEndpoint = 'https://dod-graph.microsoft.us'}
+        default {$AzureEndpoint = 'https://login.microsoftonline.com';$graphEndpoint = 'https://graph.microsoft.com'}
+    }
+
     try {
-        #convert secret into creds
-        $azurePassword = ConvertTo-SecureString $AppSecret -AsPlainText -Force
-        $psCred = New-Object System.Management.Automation.PSCredential($AppId , $azurePassword)
-
-        #connect to Azure using App service principal
-        Connect-AzAccount -Credential $psCred -TenantId $TenantID -ServicePrincipal | Out-Null
-
-        #Grab the Azure context which will include Azure Token
-        $context = [Microsoft.Azure.Commands.Common.Authentication.Abstractions.AzureRmProfileProvider]::Instance.Profile.DefaultContext
-        $aadToken = [Microsoft.Azure.Commands.Common.Authentication.AzureSession]::Instance.AuthenticationFactory.Authenticate($context.Account, `
-                                                $context.Environment, $context.Tenant.Id.ToString(), $null, [Microsoft.Azure.Commands.Common.Authentication.ShowDialog]::Never, `
-                                                $null, "https://graph.windows.net").AccessToken
-
+        
         $Body = @{
             Grant_Type    = "client_credentials"
-            Scope         = "https://graph.microsoft.com/.default"
+            Scope         = "$graphEndpoint/.default"
             client_Id     = $AppId
             Client_Secret = $AppSecret
         }
-        $ConnectGraph = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token" -Method POST -Body $Body -ErrorAction Stop
+        $ConnectGraph = Invoke-RestMethod -Uri "$AzureEndpoint/$TenantID/oauth2/v2.0/token" -Method POST -Body $Body -ErrorAction Stop
         $token = $ConnectGraph.access_token
         #format the date correctly
         $ExpiresOnMinutes = $ConnectGraph.expires_in / 60
@@ -68,112 +202,95 @@ Function Connect-IDMGraphApp {
             'Authorization'="Bearer " + $token
             'ExpiresOn'=$ExpiresOn
         }
-        return $authHeader
     }
     Catch{
         Write-Error ("{0}: {1}" -f $_.Exception.ItemName, $_.Exception.Message)
     }
+
+    If($ReturnToken){
+        return $token
+    }
+    else{
+        return $authHeader
+    }
 }
 
-function Get-IDMGraphAuthToken{
+function Connect-IDMGraphApp{
 
     <#
     .SYNOPSIS
         This function is used to authenticate with the Graph API REST interface
-
+ 
     .DESCRIPTION
         The function authenticate with the Graph API Interface with the tenant name
-
+ 
     .PARAMETER User
         Must be in UPN format (email). This is the user principal name (eg user@domain.com)
-
+ 
     .EXAMPLE
         Get-IDMGraphAuthToken
         Authenticates you with the Graph API interface
+    
+    .EXAMPLE
+        Get-IDMGraphAuthToken -cloudEnvironment USGov -AppAuthToken $Token 
+        Authenticates you with the Graph API interface using the app token
 
     .NOTES
-    Requires: AzureAD Module
-
+    Requires: Microsoft.Graph.Authentication module
+    
+    .LINK
+    Reference: https://learn.microsoft.com/en-us/graph/deployments
+ 
     #>
     [cmdletbinding()]
-    param
-    (
-        [Parameter(Mandatory=$true)]
-        [System.Net.Mail.MailAddress]$User
+    param(
+        [Parameter(Mandatory = $false)]
+        [ValidateSet('Global','USGov','USGovDoD')]
+        [string] $CloudEnvironment = 'Global',
+        
+        $AppAuthToken
     )
 
-    $userUpn = New-Object "System.Net.Mail.MailAddress" -ArgumentList $User
-    $tenant = $userUpn.Host
-
-    Write-Host "Checking for AzureAD module..."
-    $AadModule = Get-Module -Name "AzureAD" -ListAvailable
-
-    if ($AadModule -eq $null) {
-        Write-Error "AzureAD Powershell module not installed. Install by running 'Install-Module AzureAD' from an elevated PowerShell prompt"
-    }
-
-    # Getting path to ActiveDirectory Assemblies
-    # If the module count is greater than 1 find the latest version
-    if($AadModule.count -gt 1)
+    If($AppAuthToken)
     {
-        $Latest_Version = ($AadModule | select version | Sort-Object)[-1]
-        $aadModule = $AadModule | ? { $_.version -eq $Latest_Version.version }
-        # Checking if there are multiple versions of the same module found
-        if($AadModule.count -gt 1){
-            $aadModule = $AadModule | select -Unique
+        If($AppAuthToken.Authorization){
+            $SecureToken = ConvertTo-SecureString ($AppAuthToken.Authorization.Replace('Bearer','').Trim()) -AsPlainText -Force
+        }Else{
+            $SecureToken = ConvertTo-SecureString $AppAuthToken -AsPlainText -Force
         }
-        $adal = Join-Path $AadModule.ModuleBase "Microsoft.IdentityModel.Clients.ActiveDirectory.dll"
-        $adalforms = Join-Path $AadModule.ModuleBase "Microsoft.IdentityModel.Clients.ActiveDirectory.Platform.dll"
-    }
-
-    else {
-        $adal = Join-Path $AadModule.ModuleBase "Microsoft.IdentityModel.Clients.ActiveDirectory.dll"
-        $adalforms = Join-Path $AadModule.ModuleBase "Microsoft.IdentityModel.Clients.ActiveDirectory.Platform.dll"
-    }
-
-    #$adal = Join-Path $AadModule.ModuleBase "Microsoft.IdentityModel.Clients.ActiveDirectory.dll"
-    #$adalforms = Join-Path $AadModule.ModuleBase "Microsoft.IdentityModel.Clients.ActiveDirectory.Platform.dll"
-
-    try {
-        [System.Reflection.Assembly]::LoadFrom($adal) | Out-Null
-        [System.Reflection.Assembly]::LoadFrom($adalforms) | Out-Null
-    }Catch{}
-    $clientId = "d1ddf0e4-d672-4dae-b554-9d5bdfd93547"
-    $redirectUri = "urn:ietf:wg:oauth:2.0:oob"
-    $resourceAppIdURI = "https://graph.microsoft.com"
-    $authority = "https://login.microsoftonline.com/$Tenant"
-
-    try {
-        $authContext = New-Object "Microsoft.IdentityModel.Clients.ActiveDirectory.AuthenticationContext" -ArgumentList $authority
-
-        # https://msdn.microsoft.com/en-us/library/azure/microsoft.identitymodel.clients.activedirectory.promptbehavior.aspx
-        # Change the prompt behavior to force credentials each time: Auto, Always, Never, RefreshSession
-        $platformParameters = New-Object "Microsoft.IdentityModel.Clients.ActiveDirectory.PlatformParameters" -ArgumentList "Auto"
-        $userId = New-Object "Microsoft.IdentityModel.Clients.ActiveDirectory.UserIdentifier" -ArgumentList ($User, "OptionalDisplayableId")
-        $authResult = $authContext.AcquireTokenAsync($resourceAppIdURI,$clientId,$redirectUri,$platformParameters,$userId).Result
-
-        # If the accesstoken is valid then create the authentication header
-        if($authResult.AccessToken){
-
-            # Creating header for Authorization token
-            $authHeader = @{
-                'Content-Type'='application/json'
-                'Authorization'="Bearer " + $authResult.AccessToken
-                'ExpiresOn'=$authResult.ExpiresOn
-            }
-            return $authHeader
+        
+        Try{    
+            Connect-MgGraph -Environment $CloudEnvironment -AccessToken $SecureToken -NoWelcome
         }
-        else {
-            Write-Error "Authorization Access Token is null, please re-run authentication..."
+        Catch{
+            Write-Error ("{0}: {1}" -f $_.Exception.ItemName, $_.Exception.Message)
         }
+
+    }Else{
+
+        Try{
+            Connect-MgGraph -Environment $CloudEnvironment -Scopes $script:GraphScopes -NoWelcome
+        }
+        Catch{
+            Write-Error ("{0}: {1}" -f $_.Exception.ItemName, $_.Exception.Message)
+        }
+
     }
-    catch {
-        Write-Error ("{0}: {1}" -f $_.Exception.ItemName, $_.Exception.Message)
+
+    $context = Get-MgContext
+    
+    #Set global variable for graph endpoint
+    switch ($context.Environment) {
+        'Global' {$Global:graphEndpoint = 'https://graph.microsoft.com'}
+        'USGov' {$Global:graphEndpoint = 'https://graph.microsoft.us'}
+        'USGovDoD' {$Global:graphEndpoint = 'https://dod-graph.microsoft.us'}
+        default {$Global:graphEndpoint = 'https://graph.microsoft.com'}
     }
+
+    return $context
 }
 
-
-function Update-IDMGraphAccessToken{
+function Update-IDMGraphAppAuthToken{
     <#
     .SYNOPSIS
         Refreshes an access token based on refresh token
@@ -195,6 +312,7 @@ function Update-IDMGraphAccessToken{
 
     .LINK
         Reference: https://docs.microsoft.com/en-us/graph/auth-v2-user#3-get-a-token
+        Reference: https://learn.microsoft.com/en-us/entra/identity-platform/authentication-national-cloud
     #>
     Param(
         [parameter(Mandatory = $true)]
@@ -209,22 +327,31 @@ function Update-IDMGraphAccessToken{
         [parameter(Mandatory = $true)]
         [String]$Secret,
 
+        [Parameter(Mandatory = $false)]
+        [ValidateSet('Global','USGov','USGovDoD')]
+        [string] $CloudEnvironment = 'Global',
+
         [parameter(Mandatory = $false)]
         [String[]]$Scope = @("Group.ReadWrite.All","User.ReadWrite.All")
     )
 
     # Defining Variables
-    $graphApiVersion = "v2.0"
-    $Resource = "token"
+    $oAuthApiVersion = "v2.0"
 
-    $uri = "https://login.microsoftonline.com/$TenantID/oauth2/$graphApiVersion/$Resource"
+    switch ($CloudEnvironment) {
+        'Global' {$AzureEndpoint = 'https://login.microsoftonline.com';$graphEndpoint = 'https://graph.microsoft.com'}
+        'USGov' {$AzureEndpoint = 'https://login.microsoftonline.us';$graphEndpoint = 'https://graph.microsoft.us'}
+        'USGovDoD' {$AzureEndpoint = 'https://login.microsoftonline.us';$graphEndpoint = 'https://dod-graph.microsoft.us'}
+    }
+
+    $uri = "$AzureEndpoint/$TenantID/oauth2/$oAuthApiVersion/token"
 
     $bodyHash = @{
         client_id = $ClientID
         scope = ($Scope -join ' ')
         refresh_token = $Token
         #redirect_uri =' http://localhost'
-        redirect_uri = 'https://graph.microsoft.com/.default'
+        redirect_uri = ($graphEndpoint + '/.default')
         grant_type = 'refresh_token'
         client_secret = $Secret
     }
@@ -315,13 +442,16 @@ Function Invoke-IDMGraphBatchRequests{
         $i = 1
         #Build custom object for assignment
         $BatchProperties = "" | Select requests
+        If($null -eq $Global:graphEndpoint){
+            Write-Error "Graph endpoint not found. Please authenticate with Get-IDMGraphAuthToken or Connect-MgGraph first"
+        }
     }
     Process{
         Foreach($url in $Uri | Select -Unique){
             $URLRequests = "" | Select id,method,url
             $URLRequests.id = $i
             $URLRequests.method = $Method
-            $URLRequests.url = $url.replace("https://graph.microsoft.com/$graphApiVersion",'')
+            $URLRequests.url = $url.replace("$Global:graphEndpoint/$graphApiVersion",'')
             $i++
             $batch += $URLRequests
         }
@@ -333,7 +463,7 @@ Function Invoke-IDMGraphBatchRequests{
         $BatchBody = $BatchProperties | ConvertTo-Json
 
         Write-Verbose $BatchBody
-        $batchUri = "https://graph.microsoft.com/$graphApiVersion/`$batch"
+        $batchUri = "$Global:graphEndpoint/$graphApiVersion/`$batch"
         try {
             Write-Verbose "Get $batchUri"
             $response = Invoke-RestMethod -Uri $batchUri -Headers $Headers -Method Post -Body $BatchBody
@@ -355,7 +485,7 @@ Function Invoke-IDMGraphBatchRequests{
                     {
                         $hashtable[$property] = $Item.$property
                     }
-                    $hashtable['uri'] = "https://graph.microsoft.com/$graphApiVersion" + $batch[$i].url
+                    $hashtable['uri'] = "$Global:graphEndpoint/$graphApiVersion" + $batch[$i].url
                     #$hashtable['type'] = (Split-Path $Element.'@odata.context' -Leaf).replace('$metadata#','')
                     $Object = New-Object PSObject -Property $hashtable
                     $BatchResponses += $Object
@@ -418,10 +548,10 @@ Function Invoke-IDMGraphRequests{
             'https://graph.microsoft.com/beta/deviceAppManagement/mobileApps'
             'https://graph.microsoft.com/beta/deviceAppManagement/policysets'
         )
-        $Responses = $Uri | Invoke-IDMGraphRequests -Headers $AuthToken -Threads $Uri.count
+        $Responses = $Uri | Invoke-IDMGraphRequests -Threads $Uri.count
 
     .EXAMPLE
-        Invoke-IDMGraphRequests -Uri 'https://graph.microsoft.com/beta/deviceManagement/managedDevices' -Headers $AuthToken -Passthru
+        Invoke-IDMGraphRequests -Uri 'https://graph.microsoft.com/beta/deviceManagement/managedDevices' -Passthru
 
     .LINK
         https://b-blog.info/en/implement-multi-threading-with-net-runspaces-in-powershell.html

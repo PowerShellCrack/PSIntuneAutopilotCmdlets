@@ -2,7 +2,11 @@
 
 ## Prerequisites
 
-No prerequisites are needed
+- Az.Accounts*
+- Microsoft.Graph.Authentication*
+- Microsoft.Graph.Applications*
+
+> *If creating an app using module
 
 ## Install
 
@@ -12,14 +16,11 @@ Install-Module IDMCmdlets -Force
 
 ## Cmdlets
 
-### IDMGraph.ps1
+- **New-IDMGraphApp** : Creates an Application with appropiate permissions
 - **Connect-IDMGraphApp** : Authenticates to the Graph API using app
-- **Get-IDMGraphAuthToken** : Authenticate with the Graph API REST interface
+- **Get-IDMGraphAppAuthToken** : Grabs the Graph token from app
 - **Update-IDMGraphAccessToken** : Refreshes an access token
 - **Invoke-IDMGraphRequests** :  Invoke multiple graph requests in in a multithreaded runspace pool to speed up response
-
-### IDM.ps1
-
 - **Get-IDMDevice** : Retrieves Intune Managed Devices; use expand to get association with Azure AD (eg. Get-IDMDevice -Expand)
 - **Get-IDMAzureDevices** : Retrieves Azure Devices
 - **Get-IDMDevicePendingActions** : Retrieves a Managed Device pending Actions
@@ -34,25 +35,47 @@ Install-Module IDMCmdlets -Force
 - _Set-IDMResourceFriendlyType_ *
 
 > \* Cmdlets still a work-in-progress
-
-### Autopilot.ps1
 - **Get-IDMAutopilotProfile** : Retrieves Windows Autopilot profiles
 - **Get-IDMAutopilotDevice** : Retrieves devices currently registered with Windows Autopilot.
 - **Set-IDMAutopilotDeviceTag** : Updates grouptag for Autopilot device
 
+## Clouds Supported
 
-## Examples
+- Public (IL3)
+- Azure Government (IL4)
+- Azure DOD (IL5)
+
+## Examples #1
 
 ```powershell
-Import-Module IDMCmdlets
+Install-Module Az.Accounts
+Install-Module Microsoft.Graph.Authentication
+Install-Module Microsoft.Graph.Applications
+Install-Module IDMCmdlets
 
-$Global:AuthToken = Connect-IDMGraphApp -Tenant '0ad2375d-0906-41d5-9563-1994db1a70f9' -AppId 'f96b2862-9dcd-468e-8935-a86e575f814a' -AppSecret "j0H8Q~X7YBLFYD6YoUBL2gPLE37yg5k5WATmGcgB"
-
-$Global:Authtoken = Get-IDMGraphAuthToken -User <globaladmin>@<azuretenant>.onmicrosoft.com
+$app = New-IDMGraphApp -appNamePrefix "IntuneDeviceManagerApp" -AsHashTable
+$token = Get-IDMGraphAppAuthToken @app -ReturnToken
+Connect-IDMGraphApp -AppAuthToken $token
 
 Get-IDMDevice -Platform Windows
 
 Get-IDMIntuneAssignments -Target Devices -TargetId 'afb8aa9a-c4cf-48aa-ad7b-ec60180ea787' -IncludePolicySetInherits
 
 Get-IDMIntuneAssignments -Target Users -TargetId '4d20ea83-c825-46d6-a07f-ce97cfe19b6b' -IncludePolicySetInherits
+```
+
+## Examples #2
+
+```powershell
+Install-Module IDMCmdlets
+
+$app = New-IDMGraphApp -CloudEnvironment USGov -appNamePrefix "IntuneDeviceManagerApp" -AsHashTable
+$token = Get-IDMGraphAppAuthToken @app -ReturnToken
+Connect-IDMGraphApp -CloudEnvironment USGov -AppAuthToken $token
+
+Get-IDMDevice -Platform Windows
+
+Get-IDMIntuneAssignments -Target Devices -TargetId 'b305693e-4140-40e5-86c8-67b8cb1cc822' -IncludePolicySetInherits
+
+Get-IDMIntuneAssignments -Target Users -TargetId 'c3aa4156-7242-44f8-a29c-0eaf03405de6' -IncludePolicySetInherits
 ```
