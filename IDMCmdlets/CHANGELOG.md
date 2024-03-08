@@ -1,5 +1,11 @@
 # Change log for IDMCmdlets
 
+## 1.0.1.5 March 8, 2024
+
+- Converted AppSecret to secure string
+- Fixed Intune assignments with Authtoken
+- Fixed IDMUsers to use multiple CloudEnvironments
+
 ## 1.0.1.4 March 7, 2024
 
 - Fixed graph tokens for user and apps; removed auth token requirement

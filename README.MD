@@ -53,15 +53,11 @@ Install-Module Microsoft.Graph.Authentication
 Install-Module Microsoft.Graph.Applications
 Install-Module IDMCmdlets
 
+#create graph app with Intune permissions as hashtable (for splatting)
 $app = New-IDMGraphApp -appNamePrefix "IntuneDeviceManagerApp" -AsHashTable
-$token = Get-IDMGraphAppAuthToken @app -ReturnToken
-Connect-IDMGraphApp -AppAuthToken $token
 
-Get-IDMDevice -Platform Windows
-
-Get-IDMIntuneAssignments -Target Devices -TargetId 'afb8aa9a-c4cf-48aa-ad7b-ec60180ea787' -IncludePolicySetInherits
-
-Get-IDMIntuneAssignments -Target Users -TargetId '4d20ea83-c825-46d6-a07f-ce97cfe19b6b' -IncludePolicySetInherits
+#save appdetails for later use
+$app | Export-Clixml .\intuneapp_secret.xml
 ```
 
 ## Examples #2
@@ -69,13 +65,17 @@ Get-IDMIntuneAssignments -Target Users -TargetId '4d20ea83-c825-46d6-a07f-ce97cf
 ```powershell
 Install-Module IDMCmdlets
 
-$app = New-IDMGraphApp -CloudEnvironment USGov -appNamePrefix "IntuneDeviceManagerApp" -AsHashTable
-$token = Get-IDMGraphAppAuthToken @app -ReturnToken
-Connect-IDMGraphApp -CloudEnvironment USGov -AppAuthToken $token
+$app = Import-Clixml .\intuneapp_secret.xml
 
+#import the app as splat for all parameters to get authtoken header
+$Global:AuthToken = Get-IDMGraphAppAuthToken @app
+Connect-IDMGraphApp -AppAuthToken $Global:AuthToken
+
+#perform actions (can also call other Invoke-MgGraphRequests)
 Get-IDMDevice -Platform Windows
 
 Get-IDMIntuneAssignments -Target Devices -TargetId 'b305693e-4140-40e5-86c8-67b8cb1cc822' -IncludePolicySetInherits
 
 Get-IDMIntuneAssignments -Target Users -TargetId 'c3aa4156-7242-44f8-a29c-0eaf03405de6' -IncludePolicySetInherits
+
 ```

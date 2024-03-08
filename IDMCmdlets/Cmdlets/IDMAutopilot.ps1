@@ -28,10 +28,10 @@ Function Get-IDMAutopilotProfile{
 
     # If the ID is set, get the specific profile
     if ($id) {
-        $uri = "$Global:graphEndpoint/$graphApiVersion/$Resource/$id"
+        $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource/$id"
     }
     else {
-        $uri = "$Global:graphEndpoint/$graphApiVersion/$Resource"
+        $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource"
     }
 
     # add method to the request, Exclude URI from the request so that it won't concflict with nextLink URI
@@ -107,17 +107,17 @@ Function Get-IDMAutopilotDevice{
         $Resource = "deviceManagement/windowsAutopilotDeviceIdentities"
 
         if ($id -and $expand) {
-            $uri = "$Global:graphEndpoint/$graphApiVersion/$($Resource)/$($id)?`$expand=deploymentProfile,intendedDeploymentProfile"
+            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$($id)?`$expand=deploymentProfile,intendedDeploymentProfile"
         }
         elseif ($id) {
-            $uri = "$Global:graphEndpoint/$graphApiVersion/$($Resource)/$id"
+            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$id"
         }
         elseif ($serial) {
             $encoded = [uri]::EscapeDataString($serial)
-            $uri = "$Global:graphEndpoint/$graphApiVersion/$($Resource)?`$filter=contains(serialNumber,'$encoded')"
+            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)?`$filter=contains(serialNumber,'$encoded')"
         }
         else {
-            $uri = "$Global:graphEndpoint/$graphApiVersion/$($Resource)"
+            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
         }
 
         Write-Verbose "GET $uri"
@@ -198,7 +198,7 @@ Function Set-IDMAutopilotDeviceTag{
     }
     Process {
         #TEST $uri = "https://graph.microsoft.com/beta/deviceManagement/windowsAutopilotDeviceIdentities/c50d642a-e8d7-4f84-9dc2-3540303b1acf/UpdateDeviceProperties"
-        $uri = "$Global:graphEndpoint/$graphApiVersion/$Resource/$AutopilotID/UpdateDeviceProperties"
+        $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource/$AutopilotID/UpdateDeviceProperties"
 
         $requestBody = @{ groupTag = $groupTag }
         $BodyJson = $requestBody | ConvertTo-Json

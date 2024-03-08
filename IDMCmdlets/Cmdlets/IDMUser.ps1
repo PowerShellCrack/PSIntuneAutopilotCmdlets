@@ -73,18 +73,18 @@ Function Get-IDMAzureUser{
         try {
             if([string]::IsNullOrEmpty($QueryBy))
             {
-                $uri = "https://graph.microsoft.com/$graphApiVersion/$($User_resource)"
+                $uri = "$Global:GraphEndpoint/$graphApiVersion/$($User_resource)"
                 Write-Verbose $uri
                 $Response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
             }
             else {
                 if([string]::IsNullOrEmpty($Property)){
-                    $uri = "https://graph.microsoft.com/$graphApiVersion/$($User_resource)/$QueryBy"
+                    $uri = "$Global:GraphEndpoint/$graphApiVersion/$($User_resource)/$QueryBy"
                     Write-Verbose $uri
                     $Response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
                 }
                 else {
-                    $uri = "https://graph.microsoft.com/$graphApiVersion/$($User_resource)/$QueryBy/$Property"
+                    $uri = "$Global:GraphEndpoint/$graphApiVersion/$($User_resource)/$QueryBy/$Property"
                     Write-Verbose $uri
                     $Response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
                 }
@@ -188,9 +188,9 @@ Function Get-IDMAzureUsers{
             $filterQuery = "`?`$$Operator=" + ($Query -join ' and ')
         }
         If($IncludeGuests){
-            $uri = "https://graph.microsoft.com/$graphApiVersion/$Resource" + $filterQuery
+            $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource" + $filterQuery
         }Else{
-            $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)?`$filter=userType eq 'Member'" + $filterQuery
+            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)?`$filter=userType eq 'Member'" + $filterQuery
         }
 
         try {
@@ -253,7 +253,7 @@ Function Get-IDMDeviceAssignedUser{
         $Resource = "deviceManagement/manageddevices('$DeviceID')?`$select=userId"
 
         try {
-            $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)"
+            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
             Write-Verbose "Get $uri"
             $response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
         }
@@ -336,10 +336,10 @@ function Set-IDMDeviceAssignedUser {
         $Resource = "deviceManagement/managedDevices('$DeviceId')/users/`$ref"
 
         #build UserUri body; convert to JSON
-        $userUri = "https://graph.microsoft.com/$graphApiVersion/users/" + $UserId
+        $userUri = "$Global:GraphEndpoint/$graphApiVersion/users/" + $UserId
         $JSON = @{ "@odata.id"="$userUri" } | ConvertTo-Json -Compress
 
-        $uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)"
+        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
 
         try {
             Write-Verbose "Get $uri"

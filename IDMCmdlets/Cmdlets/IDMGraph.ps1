@@ -116,7 +116,7 @@ Function New-IDMGraphApp{
     $appdetails = "" | Select-Object AppId,AppSecret,TenantID,CloudEnvironment
     $appdetails.TenantID = $TenantID.TenantId
     $appdetails.AppId = $app.AppId
-    $appdetails.AppSecret = $ClientSecret.SecretText
+    $appdetails.AppSecret = (ConvertTo-SecureString $ClientSecret.SecretText -AsPlainText -Force)
     $appdetails.CloudEnvironment = $CloudEnvironment
 
     If($AsHashTable){
@@ -169,7 +169,7 @@ Function Get-IDMGraphAppAuthToken {
 
         [Parameter(Mandatory=$true)]
         [Alias('ClientSecret')]
-        [String]$AppSecret,
+        [securestring]$AppSecret,
 
         [Parameter(Mandatory = $false)]
         [switch]$ReturnToken
@@ -188,7 +188,7 @@ Function Get-IDMGraphAppAuthToken {
             Grant_Type    = "client_credentials"
             Scope         = "$graphEndpoint/.default"
             client_Id     = $AppId
-            Client_Secret = $AppSecret
+            Client_Secret = ($AppSecret | ConvertFrom-SecureString -AsPlainText)
         }
         $ConnectGraph = Invoke-RestMethod -Uri "$AzureEndpoint/$TenantID/oauth2/v2.0/token" -Method POST -Body $Body -ErrorAction Stop
         $token = $ConnectGraph.access_token
@@ -281,10 +281,10 @@ function Connect-IDMGraphApp{
     
     #Set global variable for graph endpoint
     switch ($context.Environment) {
-        'Global' {$Global:graphEndpoint = 'https://graph.microsoft.com'}
-        'USGov' {$Global:graphEndpoint = 'https://graph.microsoft.us'}
-        'USGovDoD' {$Global:graphEndpoint = 'https://dod-graph.microsoft.us'}
-        default {$Global:graphEndpoint = 'https://graph.microsoft.com'}
+        'Global' {$Global:GraphEndpoint = 'https://graph.microsoft.com'}
+        'USGov' {$Global:GraphEndpoint = 'https://graph.microsoft.us'}
+        'USGovDoD' {$Global:GraphEndpoint = 'https://dod-graph.microsoft.us'}
+        default {$Global:GraphEndpoint = 'https://graph.microsoft.com'}
     }
 
     return $context
@@ -442,16 +442,17 @@ Function Invoke-IDMGraphBatchRequests{
         $i = 1
         #Build custom object for assignment
         $BatchProperties = "" | Select requests
-        If($null -eq $Global:graphEndpoint){
+        If($null -eq $Global:GraphEndpoint){
             Write-Error "Graph endpoint not found. Please authenticate with Get-IDMGraphAuthToken or Connect-MgGraph first"
         }
     }
     Process{
+        
         Foreach($url in $Uri | Select -Unique){
             $URLRequests = "" | Select id,method,url
             $URLRequests.id = $i
             $URLRequests.method = $Method
-            $URLRequests.url = $url.replace("$Global:graphEndpoint/$graphApiVersion",'')
+            $URLRequests.url = $url.replace("$Global:GraphEndpoint/$graphApiVersion",'')
             $i++
             $batch += $URLRequests
         }
@@ -463,7 +464,7 @@ Function Invoke-IDMGraphBatchRequests{
         $BatchBody = $BatchProperties | ConvertTo-Json
 
         Write-Verbose $BatchBody
-        $batchUri = "$Global:graphEndpoint/$graphApiVersion/`$batch"
+        $batchUri = "$Global:GraphEndpoint/$graphApiVersion/`$batch"
         try {
             Write-Verbose "Get $batchUri"
             $response = Invoke-RestMethod -Uri $batchUri -Headers $Headers -Method Post -Body $BatchBody
@@ -485,7 +486,7 @@ Function Invoke-IDMGraphBatchRequests{
                     {
                         $hashtable[$property] = $Item.$property
                     }
-                    $hashtable['uri'] = "$Global:graphEndpoint/$graphApiVersion" + $batch[$i].url
+                    $hashtable['uri'] = "$Global:GraphEndpoint/$graphApiVersion" + $batch[$i].url
                     #$hashtable['type'] = (Split-Path $Element.'@odata.context' -Leaf).replace('$metadata#','')
                     $Object = New-Object PSObject -Property $hashtable
                     $BatchResponses += $Object
@@ -563,8 +564,8 @@ Function Invoke-IDMGraphRequests{
         [Parameter(Mandatory=$True,ValueFromPipelineByPropertyName=$true,ValueFromPipeline=$true,HelpMessage="Specify Uri or array or Uris")]
         [string[]]$Uri,
 
-        [Parameter(Mandatory=$true)]
-        [hashtable]$Headers,
+        [Parameter(Mandatory=$false)]
+        [hashtable]$Headers = $Global:AuthToken,
 
         [int]$Threads = 15,
 

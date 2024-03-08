@@ -119,7 +119,7 @@ Function Get-IDMDevice{
         $filterQuery = "`?`$filter=" + ($Query -join ' and ')
     }
 
-    $uri = "$Global:graphEndpoint/$graphApiVersion/$Resource" + $filterQuery
+    $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource" + $filterQuery
 
     try {
         Write-Verbose "Get $uri"
@@ -295,7 +295,7 @@ Function Get-IDMDevices{
         $filterQuery = "`?`$filter=" + ($Query -join ' and ')
     }
 
-    $uri = "$Global:graphEndpoint/$graphApiVersion/$Resource" + $filterQuery
+    $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource" + $filterQuery
 
     try {
         Write-Verbose "Get $uri"
@@ -315,7 +315,7 @@ Function Get-IDMDevices{
         #TEST $Item = $Response.Value | Where deviceName -eq 'DTOLAB-46VEYL1'
         Foreach($Item in $Response.Value)
         {
-            $AzureDevicesUris += "$Global:graphEndpoint/$graphApiVersion/devices?`$filter=displayName eq '$($Item.deviceName)'"
+            $AzureDevicesUris += "$Global:GraphEndpoint/$graphApiVersion/devices?`$filter=displayName eq '$($Item.deviceName)'"
         }
         #invoke a query on all
         $AzureDevices = $AzureDevicesUris | Invoke-IDMGraphBatchRequests -Verbose:$VerbosePreference
@@ -444,7 +444,7 @@ Function Get-IDMAzureDevices{
             $filterQuery = "`?`$$Operator=" + ($Query -join ' and ')
         }
 
-        $uri = "$Global:graphEndpoint/$graphApiVersion/$Resource" + $filterQuery
+        $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource" + $filterQuery
 
         try {
             Write-Verbose "Get $uri"
@@ -516,7 +516,7 @@ Function Get-IDMDevicePendingActions{
         $Resource = "deviceManagement/manageddevices/$DeviceID"
 
         try {
-            $uri = "$Global:graphEndpoint/$graphApiVersion/$($Resource)"
+            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
             Write-Verbose "Get $uri"
             $response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
         }
@@ -556,7 +556,7 @@ Function Get-IDMDeviceCategory{
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/deviceCategories"
 
-    $uri = "$Global:graphEndpoint/$graphApiVersion/$Resource"
+    $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource"
 
     try {
         Write-Verbose "GET $uri"
@@ -604,11 +604,11 @@ Function Set-IDMDeviceCategory{
     $CategoryId = ($Categories | Where displayName -eq $Category).id
 
     #$requestBody = @{ "@odata.id" = "https://graph.microsoft.com/$graphApiVersion/deviceManagement/deviceCategories/3137f37d-ff7c-48ec-af57-d4404faf844e" }
-    $requestBody = @{ "@odata.id" = "$Global:graphEndpoint/$graphApiVersion/deviceManagement/deviceCategories/$CategoryId" }
+    $requestBody = @{ "@odata.id" = "$Global:GraphEndpoint/$graphApiVersion/deviceManagement/deviceCategories/$CategoryId" }
     $BodyJson = $requestBody | ConvertTo-Json
 
     #$uri = "https://graph.microsoft.com/beta/deviceManagement/managedDevices/08d06b3b-8513-417b-80ee-9dc8a3beb377/deviceCategory/`$ref"
-    $uri = "$Global:graphEndpoint/$graphApiVersion/$Resource/$DeviceID/deviceCategory/`$ref"
+    $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource/$DeviceID/deviceCategory/`$ref"
 
     try {
         Write-Verbose "GET $uri"
@@ -677,7 +677,7 @@ Function Invoke-IDMDeviceAction{
                 $ActionMsg = "Sending remoteLock command to device ID: $DeviceID..."
 
                 $Resource = "deviceManagement/managedDevices/$DeviceID/remoteLock"
-                $uri = "$Global:graphEndpoint/$graphApiVersion/$($resource)"
+                $uri = "$Global:GraphEndpoint/$graphApiVersion/$($resource)"
 
                 $RequestParams += @{
                     Uri=$uri
@@ -691,7 +691,7 @@ Function Invoke-IDMDeviceAction{
                 $ActionMsg = "Resetting the Passcode for device ID: $DeviceID..."
 
                 $Resource = "deviceManagement/managedDevices/$DeviceID/resetPasscode"
-                $uri = "$Global:graphEndpoint/$graphApiVersion/$($resource)"
+                $uri = "$Global:GraphEndpoint/$graphApiVersion/$($resource)"
 
                 $RequestParams += @{
                     Uri=$uri
@@ -705,7 +705,7 @@ Function Invoke-IDMDeviceAction{
                 $ActionMsg = "Sending [Wipe] action to device ID: `"$DeviceID`"..."
 
                 $Resource = "deviceManagement/managedDevices/$DeviceID/wipe"
-                $uri = "$Global:graphEndpoint/$graphApiVersion/$($resource)"
+                $uri = "$Global:GraphEndpoint/$graphApiVersion/$($resource)"
 
                 $RequestParams += @{
                     Uri=$uri
@@ -720,7 +720,7 @@ Function Invoke-IDMDeviceAction{
                 $ActionMsg = "Sending [Retire] to device ID: `"$DeviceID`"..."
                 $Resource = "deviceManagement/managedDevices/$DeviceID/retire"
 
-                $uri = "$Global:graphEndpoint/$graphApiVersion/$($resource)"
+                $uri = "$Global:GraphEndpoint/$graphApiVersion/$($resource)"
 
                 $RequestParams += @{
                     Uri=$uri
@@ -736,7 +736,7 @@ Function Invoke-IDMDeviceAction{
                 $ActionMsg = "Deleting `"$DeviceID`"..."
                 $Resource = "deviceManagement/managedDevices('$DeviceID')"
 
-                $uri = "$Global:graphEndpoint/$graphApiVersion/$($resource)"
+                $uri = "$Global:GraphEndpoint/$graphApiVersion/$($resource)"
 
                 $RequestParams += @{
                     Uri=$uri
@@ -750,7 +750,7 @@ Function Invoke-IDMDeviceAction{
                 $ActionMsg = "Syncing device Id: `"$DeviceID`"..."
                 $Resource = "deviceManagement/managedDevices('$DeviceID')/syncDevice"
 
-                $uri = "$Global:graphEndpoint/$graphApiVersion/$($resource)"
+                $uri = "$Global:GraphEndpoint/$graphApiVersion/$($resource)"
 
                 $RequestParams += @{
                     Uri=$uri
@@ -772,7 +772,7 @@ Function Invoke-IDMDeviceAction{
 "@
                 $Resource = "deviceManagement/managedDevices('$DeviceID')/setDeviceName"
 
-                $uri = "$Global:graphEndpoint/$graphApiVersion/$($resource)"
+                $uri = "$Global:GraphEndpoint/$graphApiVersion/$($resource)"
 
                 $RequestParams += @{
                     Uri=$uri
@@ -940,7 +940,7 @@ Function Remove-IDMDeviceRecords{
                 $AutopilotDevices = New-Object System.Collections.ArrayList
                 foreach ($IntuneDevice in $IntuneDevices)
                 {
-                    $URI = "$Global:graphEndpoint/beta/deviceManagement/windowsAutopilotDeviceIdentities?`$filter=contains(serialNumber,'$($IntuneDevice.serialNumber)')"
+                    $URI = "$Global:GraphEndpoint/beta/deviceManagement/windowsAutopilotDeviceIdentities?`$filter=contains(serialNumber,'$($IntuneDevice.serialNumber)')"
                     $AutopilotDevice = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
                     [void]$AutopilotDevices.Add($AutopilotDevice)
                 }
@@ -949,7 +949,7 @@ Function Remove-IDMDeviceRecords{
                 foreach ($device in $AutopilotDevices)
                 {
                     Write-host "   Deleting SerialNumber: $($Device.value.serialNumber)  |  Model: $($Device.value.model)  |  Id: $($Device.value.id)  |  GroupTag: $($Device.value.groupTag)  |  ManagedDeviceId: $($device.value.managedDeviceId) …" -NoNewline
-                    $URI = "$Global:graphEndpoint/beta/deviceManagement/windowsAutopilotDeviceIdentities/$($device.value.Id)"
+                    $URI = "$Global:GraphEndpoint/beta/deviceManagement/windowsAutopilotDeviceIdentities/$($device.value.Id)"
                     $AutopilotDevice = Invoke-MgGraphRequest -Uri $uri -Method Delete -ErrorAction Stop
                     Write-Host "Success" -ForegroundColor Green
                 }
@@ -1046,6 +1046,7 @@ Function Get-IDMIntuneAssignments{
 
         [Parameter(Mandatory=$false)]
         [switch]$IncludePolicySetInherits
+
     )
 
     $graphApiVersion = "beta"
@@ -1055,10 +1056,10 @@ Function Get-IDMIntuneAssignments{
     #TEST $TargetSet = @{devices=$syncHash.Data.SelectedDevice.azureADObjectId;users=$syncHash.Data.AssignedUser.id}
     If($TargetSet)
     {
-        $UriResources += $TargetSet.GetEnumerator() | %{"$Global:graphEndpoint/$graphApiVersion/$($_.Name)/$($_.Value)/memberOf"}
+        $UriResources += $TargetSet.GetEnumerator() | %{"$Global:GraphEndpoint/$graphApiVersion/$($_.Name)/$($_.Value)/memberOf"}
     }
     Else{
-        $UriResources += "$Global:graphEndpoint/$graphApiVersion/$($Target.ToLower())/memberOf"
+        $UriResources += "$Global:GraphEndpoint/$graphApiVersion/$($Target.ToLower())/memberOf"
     }
 
     #loop through each Intune Component, then get assignments for each
@@ -1128,8 +1129,10 @@ Function Get-IDMIntuneAssignments{
     }
 
     #Add component URIs
-    $UriResources += $PlatformComponents | %{ "$Global:graphEndpoint/$graphApiVersion/$($_)"}
-    Write-Verbose ($UriResources -join ',')
+    $UriResources += $PlatformComponents | %{ "$Global:GraphEndpoint/$graphApiVersion/$($_)"}
+    Foreach($Uri in $UriResources){
+        Write-Verbose "URI: $Uri"
+    }
 
     #BATCH CALL #1: Do a batch call on device,users and platform resources to get all properties
     #Using -Passthru with Invoke-IDMGraphRequests will out graph data including next link and context.
