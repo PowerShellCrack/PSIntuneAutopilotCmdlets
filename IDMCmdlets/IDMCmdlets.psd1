@@ -4,7 +4,7 @@
     RootModule = 'IDMCmdlets.psm1'
 
     # Version number of this module.
-    ModuleVersion = '1.0.1.5'
+    ModuleVersion = '1.0.1.6'
 
     # ID used to uniquely identify this module
     GUID = 'a8428a2b-be4c-43c7-b44c-ea20d0d04490'
@@ -64,6 +64,7 @@
     # Functions to export from this module
     FunctionsToExport = @(
         'New-IDMGraphApp'
+        'Update-IDMGraphApp'
         'Connect-IDMGraphApp'
         'Get-IDMGraphAppAuthToken'
         'Get-IDMDevice'

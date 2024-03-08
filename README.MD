@@ -16,9 +16,10 @@ Install-Module IDMCmdlets -Force
 
 ## Cmdlets
 
-- **New-IDMGraphApp** : Creates an Application with appropiate permissions
-- **Connect-IDMGraphApp** : Authenticates to the Graph API using app
+- **New-IDMGraphApp** : Creates an Application with appropriate permissions
+- **Update-IDMGraphApp** : Updates an application secret or permissions
 - **Get-IDMGraphAppAuthToken** : Grabs the Graph token from app
+- **Connect-IDMGraphApp** : Authenticates to the Graph API using app
 - **Update-IDMGraphAccessToken** : Refreshes an access token
 - **Invoke-IDMGraphRequests** :  Invoke multiple graph requests in in a multithreaded runspace pool to speed up response
 - **Get-IDMDevice** : Retrieves Intune Managed Devices; use expand to get association with Azure AD (eg. Get-IDMDevice -Expand)
@@ -78,4 +79,22 @@ Get-IDMIntuneAssignments -Target Devices -TargetId 'b305693e-4140-40e5-86c8-67b8
 
 Get-IDMIntuneAssignments -Target Users -TargetId 'c3aa4156-7242-44f8-a29c-0eaf03405de6' -IncludePolicySetInherits
 
+```
+
+## Examples #3
+
+```powershell
+Install-Module IDMCmdlets
+
+#import app details
+$app = Import-Clixml .\intuneapp_secret.xml
+
+#Add permissions to app
+Update-IDMGraphApp -AppId $app.AppId -Permissions "Group.ReadWrite.All","GroupMember.ReadWrite.All" -TenantID $app.TenantID
+
+#add new secret to app
+$app = Update-IDMGraphApp -AppId $app.AppId -NewSecret -TenantID $app.TenantID -AsHashTable
+
+#export appdetails
+$app | Export-Clixml .\intuneapp_secret.xml
 ```

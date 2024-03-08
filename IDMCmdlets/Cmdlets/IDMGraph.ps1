@@ -47,7 +47,8 @@ Function New-IDMGraphApp{
     Connect-MgGraph -Environment $GraphEnvironment -Scopes "Application.ReadWrite.All","User.Read" -NoWelcome
     Write-Host ("done") -ForegroundColor Green
 
-    $TenantID = Get-MgContext | Select-Object -Property TenantId
+    $TenantID = Get-MgContext | Select-Object -ExpandProperty TenantId
+    
     #Set variables for the app
     $startDate = Get-Date
     $endDate = $startDate.AddYears(1)
@@ -114,10 +115,10 @@ Function New-IDMGraphApp{
     
     #build object to return
     $appdetails = "" | Select-Object AppId,AppSecret,TenantID,CloudEnvironment
-    $appdetails.TenantID = $TenantID.TenantId
+    $appdetails.TenantID = $TenantID
     $appdetails.AppId = $app.AppId
     $appdetails.AppSecret = (ConvertTo-SecureString $ClientSecret.SecretText -AsPlainText -Force)
-    $appdetails.CloudEnvironment = $CloudEnvironment
+    $appdetails.CloudEnvironment = $GraphEnvironment
 
     If($AsHashTable){
         $ht2 = @{}
@@ -126,6 +127,119 @@ Function New-IDMGraphApp{
     }Else{
         return $appdetails
     }
+}
+
+Function Update-IDMGraphApp{
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [String]$AppId,
+
+        [Parameter(Mandatory = $true)]
+        [String]$TenantID,
+
+        [Parameter(Mandatory = $false)]
+        [ValidateSet('Public','Global','USGov','USGovDoD')]
+        [string]$CloudEnvironment = 'Global',
+
+        [Parameter(Mandatory = $false)]
+        [string[]]$Permissions,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$NewSecret,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$AsHashTable
+    )
+
+    $ErrorActionPreference = 'Stop'
+
+    #Requires -Modules Microsoft.Graph.Authentication,Microsoft.Graph.Applications
+
+    Switch($CloudEnvironment){
+        'Public' {$GraphEnvironment = 'Global'}
+        'USGov' { $GraphEnvironment = 'USGov'}
+        'USGoDoD' { $GraphEnvironment = 'USGovDoD'}
+        default { $GraphEnvironment = 'Global'}
+    }
+
+    #Connect to Graph
+    Write-Host ("Connecting to Graph...") -ForegroundColor Cyan -NoNewline
+    Connect-MgGraph -Environment $GraphEnvironment -Scopes "Application.ReadWrite.All","User.Read" -NoWelcome
+    Write-Host ("done") -ForegroundColor Green
+
+    $TenantID = Get-MgContext | Select-Object -ExpandProperty TenantId
+    #Set variables for the app
+    $AppServicePrincipal = Get-MgServicePrincipal -Filter "AppId eq '$AppId'"
+    
+    If($AppServicePrincipal){       
+
+        $GraphResourceId = "00000003-0000-0000-c000-000000000000" #Microsoft Graph
+        $GraphServicePrincipal = Get-MgServicePrincipal -Filter "AppId eq '$GraphResourceId'"
+
+        Foreach($Permission in $Permissions)
+        {
+            If($GraphServicePrincipal.AppRoles | Where-Object {$_.value -eq $Permission})
+            {
+                If($AppServicePrincipal.AppRoles | Where-Object {$_.value -eq $Permission})
+                {
+                    Write-Host ("Permission already granted: {0}" -f $Permission) -ForegroundColor Yellow
+                
+                }Else{
+                    $PermissionScope = $GraphServicePrincipal.AppRoles | Where-Object {$_.value -in $Permission}
+
+                    Write-Host ("Granting permissions to app: {0}..." -f $Permission) -ForegroundColor White -NoNewline
+                    $params = @{
+                        "PrincipalId" = $AppServicePrincipal.id      #ObjectID of the enterprise app for my app registration
+                        "ResourceId" = $GraphServicePrincipal.id     #ID of graph service principal ID in my tenant
+                        "AppRoleId" = $PermissionScope.Id             #ID of the graph role
+                    }
+                    $null = New-MgServicePrincipalAppRoleAssignment -ServicePrincipalId $AppServicePrincipal.id -BodyParameter $params
+                    Write-Host ("done") -ForegroundColor Green
+                }
+            }Else{
+                Write-Host ("Permission not found: {0}" -f $Permission) -ForegroundColor Yellow
+            }
+
+        }
+
+        If($NewSecret){
+            $AppEnterpriseApplication = Get-MgApplication -Filter "AppId eq '$AppId'"
+            #Create the client secret
+            $startDate = Get-Date
+            $endDate = $startDate.AddYears(1)
+
+            $PasswordCredentials = @{
+                StartDateTime = $startDate 
+                EndDateTime = $endDate
+                DisplayName = ($AppServicePrincipal.DisplayName.Split('-')[0] + "_" + ($startDate).ToUniversalTime().ToString("yyyyMMdd"))
+            }
+            Write-Host ("Generating app secret with name: {0}..." -f $PasswordCredentials.DisplayName) -ForegroundColor White -NoNewline
+            $ClientSecret = Add-MgApplicationPassword -ApplicationId $AppEnterpriseApplication.Id -PasswordCredential $PasswordCredentials
+            Write-Host ("done: {0}..." -f $ClientSecret.SecretText.Substring(0,7)) -ForegroundColor Green
+        }
+        
+        $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
+
+        #build object to return
+        $appdetails = "" | Select-Object AppId,AppSecret,TenantID,CloudEnvironment
+        $appdetails.TenantID = $TenantID
+        $appdetails.AppId = $AppServicePrincipal.AppId
+        $appdetails.AppSecret = (ConvertTo-SecureString $ClientSecret.SecretText -AsPlainText -Force)
+        $appdetails.CloudEnvironment = $GraphEnvironment
+
+        If($AsHashTable){
+            $ht2 = @{}
+            $appdetails = $appdetails.psobject.properties | Foreach { $ht2[$_.Name] = $_.Value }
+            return $ht2
+        }Else{
+            return $appdetails
+        }
+        Write-Host ("App registration updated!") -ForegroundColor Cyan 
+
+    }else {
+        Write-Error ("Appid not found [{0}]. Run New-IDMGraphApp or specifiy a different AppId" -f $AppId)
+    }    
 }
 
 Function Get-IDMGraphAppAuthToken {
@@ -447,7 +561,7 @@ Function Invoke-IDMGraphBatchRequests{
         }
     }
     Process{
-        
+
         Foreach($url in $Uri | Select -Unique){
             $URLRequests = "" | Select id,method,url
             $URLRequests.id = $i
