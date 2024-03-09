@@ -436,6 +436,7 @@ Function Get-IDMAzureDevices{
                 'StartWithDisplayName' {$Query += "startswith(displayName, '$Filter')";$Operator='filter'}
                 'NOTStartWithDisplayName' {$Query += "NOT startsWith(displayName, '$Filter')";$Operator='filter'}
                 'SearchDisplayName' {$Query += "`"displayName:$Filter`"";$Operator='search'}
+                default {$Query += "startswith(displayName, '$Filter')";$Operator='filter'}
             }
         }
 
@@ -986,6 +987,241 @@ Function Remove-IDMDeviceRecords{
 
 }
 
+
+
+Function Get-IDMStaleDevices{
+
+    <#
+    .SYNOPSIS
+    This function is used to get Intune Managed Devices from the Graph API REST interface
+    .DESCRIPTION
+    The function connects to the Graph API Interface and gets any Intune Managed Device that has not synced with the service in the past X days
+    .EXAMPLE
+    Get-IDMStaleDevices
+    Returns all managed devices but excludes EAS devices registered within the Intune Service that have not checked in for X days
+    .NOTES
+    https://docs.microsoft.com/en-us/azure/active-directory/devices/manage-stale-devices
+    #>
+
+    [cmdletbinding()]
+    param
+    (
+        [Int]$cutoffDays
+    )
+    # Defining Variables
+    $graphApiVersion = "beta"
+    $Resource = "deviceManagement/managedDevices"
+
+    # this will get the date/time at the time this is run, so if it is 3pm on 2/27, the 90 day back mark would be 11/29 at 3pm, meaning if a device checked in on 11/29 at 3:01pm it would not meet the check
+    #change cutoffDays to negative number if non-negative was supplied
+    if($cutoffDays -ge 0){
+        $cutoffDays = -$cutoffDays
+    }
+    $cutoffDate = (Get-Date).AddDays($cutoffDays).ToString("yyyy-MM-dd")
+
+    $uri = ("$global:GraphEndpoint/$graphApiVersion/$($Resource)?`$filter=managementAgent eq 'mdm' or managementAgent eq 'easMDM' and lastSyncDateTime le $cutoffDate")
+
+    try {
+        $devices = (Invoke-MgGraphRequest -Uri $uri -Method Get).Value
+    }catch {
+        $ex = $_.Exception
+        $errorResponse = $ex.Response.GetResponseStream()
+        $reader = New-Object System.IO.StreamReader($errorResponse)
+        $reader.BaseStream.Position = 0
+        $reader.DiscardBufferedData()
+        $responseBody = $reader.ReadToEnd();
+        Write-Host "Failed to retrieve managed devices; response content: `n$responseBody" -ForegroundColor Red
+        Write-Host "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)" -ForegroundColor Red
+    }
+    return $devices
+}
+
+Function Get-IDMStaleAzureDevices{
+
+    <#
+    .SYNOPSIS
+    This function is used to get Intune Managed Devices from the Graph API REST interface
+    .DESCRIPTION
+    The function connects to the Graph API Interface and gets any Intune Managed Device that has not synced with the service in the past X days
+    .EXAMPLE
+    Get-IDMStaleAzureDevices
+    Returns all managed devices but excludes EAS devices registered within the Intune Service that have not checked in for X days
+    .NOTES
+    https://docs.microsoft.com/en-us/azure/active-directory/devices/manage-stale-devices
+    #>
+
+    [cmdletbinding()]
+    param
+    (
+        [Int]$cutoffDays
+    )
+    # Defining Variables
+    $graphApiVersion = "beta"
+    $Resource = "devices"
+
+    # this will get the date/time at the time this is run, so if it is 3pm on 2/27, the 90 day back mark would be 11/29 at 3pm, meaning if a device checked in on 11/29 at 3:01pm it would not meet the check
+    #change cutoffDays to negative number if non-negative was supplied
+    if($cutoffDays -ge 0){
+        $cutoffDays = -$cutoffDays
+    }else{
+        $cutoffDays = -60
+    }
+    $cutoffDate = (Get-Date).AddDays($cutoffDays)
+
+    #$uri = "https://graph.microsoft.com/$graphApiVersion/$($Resource)?`$filter=approximateLastSignInDateTime le $cutoffDate"
+    $uri = "$global:GraphEndpoint/$graphApiVersion/$($Resource)"
+
+    try {
+        Write-Verbose $uri
+        $devices = (Invoke-MgGraphRequest -Uri $uri -Method Get).Value | Where {($_.ApproximateLastLogonTimeStamp -le $cutoffDate) -and ($_.AccountEnabled -eq $false)}
+    }catch {
+        $ex = $_.Exception
+        $errorResponse = $ex.Response.GetResponseStream()
+        $reader = New-Object System.IO.StreamReader($errorResponse)
+        $reader.BaseStream.Position = 0
+        $reader.DiscardBufferedData()
+        $responseBody = $reader.ReadToEnd();
+        Write-Host "Failed to retrieve managed devices; response content: `n$responseBody" -ForegroundColor Red
+        Write-Host "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)" -ForegroundColor Red
+    }
+    return $devices
+}
+
+function Remove-IDMStaleDevices{
+
+    <#
+    .SYNOPSIS
+    This function retires all stale devices in Intune that have not checked in within 90 days
+    .DESCRIPTION
+    The function connects to the Graph API Interface and retires any Intune Managed Device that has not synced with the service in the past 90 days
+    .EXAMPLE
+    Remove-IDMStaleDevices -Devices $deviceList
+    Executes a retire command against all devices in the list provided and then deletes the record from the console
+    .NOTES
+    NAME: Remove-IDMStaleDevices
+    #>
+
+    [cmdletbinding()]
+    param
+    (
+        [Parameter(Mandatory=$true)]
+        $DeviceID
+    )
+    $graphApiVersion = "beta"
+    try {
+        $Resource = "deviceManagement/managedDevices/$DeviceID/retire"
+        $uri = "$global:GraphEndpoint/$graphApiVersion/$($resource)"
+        Write-Output "Sending retire command to $DeviceID"
+        Invoke-MgGraphRequest -Uri $uri -Method Post -UseBasicParsing
+
+        $Resource = "deviceManagement/managedDevices('$DeviceID')"
+        $uri = "$global:GraphEndpoint/$graphApiVersion/$($resource)"
+        Write-Output "Sending delete command to $DeviceID"
+        Invoke-MgGraphRequest -Uri $uri -Method Delete -UseBasicParsing
+    }catch {
+        $ex = $_.Exception
+        $errorResponse = $ex.Response.GetResponseStream()
+        $reader = New-Object System.IO.StreamReader($errorResponse)
+        $reader.BaseStream.Position = 0
+        $reader.DiscardBufferedData()
+        $responseBody = $reader.ReadToEnd();
+        Write-Verbose "response content: `n$responseBody"
+        Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+    }
+}
+
+
+
+Function Get-IDMAzureDeviceExtension {
+    <#
+    https://docs.microsoft.com/en-us/graph/api/resources/extensionproperty?view=graph-rest-1.0
+    https://docs.microsoft.com/en-us/graph/extensibility-overview
+    #>
+    [cmdletbinding()]
+    param
+    (
+        [Parameter(Mandatory=$true)]
+        [string]$DeviceID,
+
+        [Parameter(Mandatory=$false)]
+        [ValidateRange(1-15)]
+        [int]$ExtensionID
+    )
+    $graphApiVersion = "beta"
+    $Resource = "devices"
+
+
+    $uri = "$global:GraphEndpoint/$graphApiVersion/$($Resource)/$($DeviceID)?`$select=extensionAttributes"
+    try {
+        Write-Verbose $uri
+        $response = Invoke-MgGraphRequest -Uri $uri -Method Get
+    }catch {
+        $ex = $_.Exception
+        $errorResponse = $ex.Response.GetResponseStream()
+        $reader = New-Object System.IO.StreamReader($errorResponse)
+        $reader.BaseStream.Position = 0
+        $reader.DiscardBufferedData()
+        $responseBody = $reader.ReadToEnd();
+        Write-Verbose "response content: `n$responseBody"
+        Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+    }
+
+    If($ExtensionID){
+        Return $response.extensionAttributes | Select -ExpandProperty "extensionAttribute$($ExtensionID)"
+    }Else{
+        Return $response.extensionAttributes
+    }
+
+}
+
+
+
+Function Set-IDMAzureDeviceExtension {
+    <#
+    https://docs.microsoft.com/en-us/graph/api/resources/extensionproperty?view=graph-rest-1.0
+    https://docs.microsoft.com/en-us/graph/extensibility-overview
+    https://docs.microsoft.com/en-us/graph/api/application-post-extensionproperty?view=graph-rest-beta&tabs=http
+    #>
+    [cmdletbinding()]
+    param
+    (
+        [Parameter(Mandatory=$true)]
+        [string]$DeviceID,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateRange(1,15)]
+        [int]$ExtensionID,
+
+        [Parameter(Mandatory=$true)]
+        [AllowEmptyString()]
+        [string]$ExtensionValue
+    )
+    $graphApiVersion = "beta"
+    $Resource = "devices"
+
+    If($ExtensionValue.Length -gt 0){
+        $JsonBody = @{"extensionAttributes" = @{"extensionAttribute$($ExtensionID)" = $ExtensionValue}} | ConvertTo-Json
+    }Else{
+        $JsonBody = @{"extensionAttributes" = @{"extensionAttribute$($ExtensionID)" = $null}} | ConvertTo-Json
+    }
+
+    $uri = "$global:GraphEndpoint/$graphApiVersion/$($Resource)/$($DeviceID)"
+
+    try {
+        Write-Verbose $uri
+        $null = Invoke-MgGraphRequest -Uri $uri -Method Patch -Body $JsonBody
+    }
+    catch {
+        $ex = $_.Exception
+        $errorResponse = $ex.Response.GetResponseStream()
+        $reader = New-Object System.IO.StreamReader($errorResponse)
+        $reader.BaseStream.Position = 0
+        $reader.DiscardBufferedData()
+        $responseBody = $reader.ReadToEnd();
+        Write-Verbose "response content: `n$responseBody"
+        Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode): $($ex.Response.StatusDescription)"
+    }
+}
 
 
 Function Get-IDMIntuneAssignments{

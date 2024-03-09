@@ -1,10 +1,12 @@
 # Change log for IDMCmdlets
 
-## 1.0.1.5 March 8, 2024
+## 1.0.1.8 March 8, 2024
 
 - Converted AppSecret to secure string
 - Fixed Intune assignments with Authtoken
 - Fixed IDMUsers to use multiple CloudEnvironments
+- Added new IDM functions to manage stale devices
+- Fixed Batch and multithreaded output for graph
 
 ## 1.0.1.4 March 7, 2024
 

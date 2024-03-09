@@ -4,7 +4,7 @@
     RootModule = 'IDMCmdlets.psm1'
 
     # Version number of this module.
-    ModuleVersion = '1.0.1.6'
+    ModuleVersion = '1.0.1.8'
 
     # ID used to uniquely identify this module
     GUID = 'a8428a2b-be4c-43c7-b44c-ea20d0d04490'
@@ -70,12 +70,15 @@
         'Get-IDMDevice'
         'Get-IDMDevices'
         'Get-IDMAzureDevices'
+        'Get-IDMStaleAzureDevices'
+        'Get-IDMStaleDevices'
         'Get-IDMDevicePendingActions'
         'Get-IDMDeviceAssignedUser'
         'Get-IDMDeviceAADUser'
         'Get-IDMAzureUser'
         'Get-IDMAzureUsers'
         'Get-IDMDeviceCategory'
+        'Get-IDMAzureDeviceExtension'
         'Get-IDMIntuneAssignments'
         'Get-IDMAutopilotProfile'
         'Get-IDMAutopilotDevice'
@@ -84,10 +87,12 @@
         'Set-IDMResourceFriendlyType'
         'Set-IDMAutopilotDeviceTag'
         'Set-IDMDeviceAssignedUser'
+        'Set-IDMAzureDeviceExtension'
         'Invoke-IDMGraphRequests'
         'Invoke-IDMGraphBatchRequests'
         'Invoke-IDMDeviceAction'
         'Remove-IDMDeviceRecords'
+        'Remove-IDMStaleDevices'
         'Split-IDMRequests'
     )
 

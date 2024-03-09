@@ -16,6 +16,8 @@ Install-Module IDMCmdlets -Force
 
 ## Cmdlets
 
+### Intune
+
 - **New-IDMGraphApp** : Creates an Application with appropriate permissions
 - **Update-IDMGraphApp** : Updates an application secret or permissions
 - **Get-IDMGraphAppAuthToken** : Grabs the Graph token from app
@@ -23,7 +25,8 @@ Install-Module IDMCmdlets -Force
 - **Update-IDMGraphAccessToken** : Refreshes an access token
 - **Invoke-IDMGraphRequests** :  Invoke multiple graph requests in in a multithreaded runspace pool to speed up response
 - **Get-IDMDevice** : Retrieves Intune Managed Devices; use expand to get association with Azure AD (eg. Get-IDMDevice -Expand)
-- **Get-IDMAzureDevices** : Retrieves Azure Devices
+- **Get-IDMStaleDevices** : Retrieves Intune Stale Devices
+- **Remove-IDMStaleDevices** : Removes stale devices from Intune
 - **Get-IDMDevicePendingActions** : Retrieves a Managed Device pending Actions
 - **Get-IDMDeviceAssignedUser** : Retrieves Managed Device assigned username
 - **Get-IDMDeviceAADUser** : Retrieves Azure AD User info
@@ -36,6 +39,16 @@ Install-Module IDMCmdlets -Force
 - _Set-IDMResourceFriendlyType_ *
 
 > \* Cmdlets still a work-in-progress
+
+### Azure
+
+- **Get-IDMAzureDevices** : Retrieves Azure Devices
+- **Get-IDMAzureStaleDevices** : Retrieves Azure Stale Devices
+- **Get-IDMAzureDeviceExtension** : Get Azure Device extensions
+- **Set-IDMAzureDeviceExtension** : Sets Azure Device extensions
+
+### Autopilot
+
 - **Get-IDMAutopilotProfile** : Retrieves Windows Autopilot profiles
 - **Get-IDMAutopilotDevice** : Retrieves devices currently registered with Windows Autopilot.
 - **Set-IDMAutopilotDeviceTag** : Updates grouptag for Autopilot device

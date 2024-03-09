@@ -48,7 +48,7 @@ Function New-IDMGraphApp{
     Write-Host ("done") -ForegroundColor Green
 
     $TenantID = Get-MgContext | Select-Object -ExpandProperty TenantId
-    
+
     #Set variables for the app
     $startDate = Get-Date
     $endDate = $startDate.AddYears(1)
@@ -545,7 +545,7 @@ Function Invoke-IDMGraphBatchRequests{
         [string[]]$Uri,
 
         [Parameter(Mandatory=$false)]
-        [hashtable]$Headers = $Global:AuthToken,
+        [hashtable]$Headers,
 
         [switch]$Passthru
     )
@@ -556,13 +556,14 @@ Function Invoke-IDMGraphBatchRequests{
         $i = 1
         #Build custom object for assignment
         $BatchProperties = "" | Select requests
-        If($null -eq $Global:GraphEndpoint){
+        If(-Not(Get-MgContext)){
             Write-Error "Graph endpoint not found. Please authenticate with Get-IDMGraphAuthToken or Connect-MgGraph first"
         }
     }
     Process{
 
-        Foreach($url in $Uri | Select -Unique){
+        Foreach($url in $Uri | Select -Unique)
+        {
             $URLRequests = "" | Select id,method,url
             $URLRequests.id = $i
             $URLRequests.method = $Method
@@ -576,17 +577,60 @@ Function Invoke-IDMGraphBatchRequests{
         $BatchProperties.requests = $batch
         #convert body to json
         $BatchBody = $BatchProperties | ConvertTo-Json
-
         Write-Verbose $BatchBody
-        $batchUri = "$Global:GraphEndpoint/$graphApiVersion/`$batch"
+        
+        $RestParams = @{
+            Uri = "$Global:GraphEndpoint/$graphApiVersion/`$batch"
+            Method = 'Post'
+            Body = $BatchBody
+        }
+
+        If($Headers){
+            $RestParams += @{
+                Headers = $Headers
+            }
+        }
+
         try {
             Write-Verbose "Get $batchUri"
-            $response = Invoke-RestMethod -Uri $batchUri -Headers $Headers -Method Post -Body $BatchBody
+            #$response = Invoke-RestMethod -Uri $batchUri -Headers $Headers -Method Post -Body $BatchBody
+            $response = Invoke-MgGraphRequest @RestParams -ErrorAction Stop
         }
         catch {
             Write-ErrorResponse($_)
         }
-
+        
+        If($Passthru){
+            #return raw results (including uri, value, next link)
+            Return $response.responses.body
+        }
+        Else{
+            #build object to return with combined uri and value
+            $BatchResponses = @()
+            $i=0
+            #loop through each uri
+            Foreach($uri in $response.responses.body){
+                #loop through each item to build object
+                #TEST $Item = $Results.value[0]
+                Foreach($item in $Results.value){
+                    $hashtable = @{}
+                    #TEST $property = $item.GetEnumerator() | select -first 1
+                    foreach( $property in $item.GetEnumerator() )
+                    {
+                        $hashtable[$property.Name] = $property.Value
+                    }
+                    $hashtable['uri'] = ("$Global:GraphEndpoint/$graphApiVersion" + $batch[$i].url + '/' + $item.id)
+                    #convert hashtable to object
+                    $Object = New-Object PSObject -Property $hashtable
+                    $BatchResponses += $Object
+                }
+                $i++
+            }
+            
+            return $BatchResponses
+        }
+       
+        <#
         If($Passthru){
             return $response.responses.body
         }
@@ -609,6 +653,7 @@ Function Invoke-IDMGraphBatchRequests{
             }
             return $BatchResponses
         }
+         #>
     }
 }
 
@@ -640,12 +685,12 @@ Function Invoke-IDMGraphRequests{
         Integer. Defaults to 15. Don't change unless needed (for slower CPU's)
 
     .PARAMETER Passthru
-        Using -Passthru will out graph data including next link and context. Value contains devices.
+        Using -Passthru will out graph data including next link and context. Value property contains results.
         No Passthru will out value only
 
     .EXAMPLE
         $Uri = 'https://graph.microsoft.com/beta/deviceManagement/managedDevices'
-        Invoke-IDMGraphRequests -Uri $Uri -Headers $AuthToken
+        Invoke-IDMGraphRequests -Uri $Uri
 
     .EXAMPLE
         $Uri = @(
@@ -663,10 +708,11 @@ Function Invoke-IDMGraphRequests{
             'https://graph.microsoft.com/beta/deviceAppManagement/mobileApps'
             'https://graph.microsoft.com/beta/deviceAppManagement/policysets'
         )
-        $Responses = $Uri | Invoke-IDMGraphRequests -Threads $Uri.count
+        $Responses = $Uri | Invoke-IDMGraphRequests -Threads $Uri.count -passthru
 
     .EXAMPLE
         Invoke-IDMGraphRequests -Uri 'https://graph.microsoft.com/beta/deviceManagement/managedDevices' -Passthru
+        Invoke-IDMGraphRequests -Uri 'https://graph.microsoft.com/beta/deviceManagement/roleScopeTags' -Passthru
 
     .LINK
         https://b-blog.info/en/implement-multi-threading-with-net-runspaces-in-powershell.html
@@ -679,7 +725,7 @@ Function Invoke-IDMGraphRequests{
         [string[]]$Uri,
 
         [Parameter(Mandatory=$false)]
-        [hashtable]$Headers = $Global:AuthToken,
+        [hashtable]$Headers,
 
         [int]$Threads = 15,
 
@@ -695,8 +741,21 @@ Function Invoke-IDMGraphRequests{
                 [Parameter(Mandatory=$true,Position=0)][string]$Uri,
                 [Parameter(Mandatory=$False,Position=1)][hashtable]$Headers
             )
+
+            $RestParams = @{
+                Uri = $Uri
+                Method = 'Get'
+            }
+
+            If($Headers){
+                $RestParams += @{
+                    Headers = $Headers
+                }
+            }
+
             try {
-                $response = Invoke-RestMethod -Uri $Uri -Headers $Headers -Method Get -DisableKeepAlive -ErrorAction Stop
+                #$response = Invoke-RestMethod -Uri $Uri -Headers $Headers -Method Get -DisableKeepAlive -ErrorAction Stop
+                $response = Invoke-MgGraphRequest @RestParams -ErrorAction Stop
             } catch {
                 $ex = $_.Exception
                 $errorResponse = $ex.Response.GetResponseStream()
@@ -743,6 +802,7 @@ Function Invoke-IDMGraphRequests{
             Force = $true;
         }
 
+        #TEST $populate.Value
         Update-TypeData -TypeName 'Custom.Object' @Init;
         Update-TypeData -TypeName 'Custom.Object' @Populate;
         $customObject_typeEntry = New-Object System.Management.Automation.Runspaces.SessionStateTypeEntry -ArgumentList $(Get-TypeData Custom.Object), $false;
@@ -791,6 +851,7 @@ Function Invoke-IDMGraphRequests{
         }
     }
     End{
+        
         $results = @();
         #TEST $job = $jobs
         foreach ($Job in $Jobs) {
@@ -798,27 +859,37 @@ Function Invoke-IDMGraphRequests{
             #add uri to object list if passthru used
             $Results += $Result
         }
-
+        
         If($Passthru){
+            #return raw results (including uri, value, next link)
             Return $Results
         }
         Else{
-            $JobResponses = @()
+            #build object to return with combined uri and value
+            $Responses = @()
             $i=0
-            $Item = $Results.value[0]
-            Foreach($Item in $Results.value){
-                $hashtable = @{}
-                foreach( $property in $Item.psobject.properties.name  )
-                {
-                    $hashtable[$property] = $Item.$property
+            #loop through each uri
+            Foreach($uri in $Results.uri){
+                #loop through each item to build object
+                #TEST $Item = $Results.value[0]
+                Foreach($item in $Results.value){
+                    $hashtable = @{}
+                    #TEST $property = $item.GetEnumerator() | select -first 1
+                    foreach( $property in $item.GetEnumerator() )
+                    {
+                        $hashtable[$property.Name] = $property.Value
+                    }
+                    $hashtable['uri'] = ($Results[$i].uri + '/' + $item.id)
+                    #convert hashtable to object
+                    $Object = New-Object PSObject -Property $hashtable
+                    $Responses += $Object
                 }
-                $hashtable['uri'] = $Results[$i].uri
-                #$hashtable['type'] = $Results[$i].uri | Split-Path -Leaf -ErrorAction SilentlyContinue
-                $Object = New-Object PSObject -Property $hashtable
-                $JobResponses += $Object
                 $i++
             }
-            return $JobResponses
+            
+            return $Responses
         }
     }
 }
+
+
