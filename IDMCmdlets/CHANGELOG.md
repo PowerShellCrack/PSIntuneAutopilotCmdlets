@@ -1,6 +1,6 @@
 # Change log for IDMCmdlets
 
-## 1.0.1.8 March 8, 2024
+## 1.0.1.9 March 8, 2024
 
 - Converted AppSecret to secure string
 - Fixed Intune assignments with Authtoken
