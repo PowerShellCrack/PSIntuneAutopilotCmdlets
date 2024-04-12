@@ -213,6 +213,9 @@ Function Get-IDMDeviceAssignedUser{
     .PARAMETER DeviceID
         Must be in GUID format. This is for Intune Managed device ID, not the Azure ID or Object ID
 
+    .PARAMETER Passthru
+        Returns all user details for the device
+
     .EXAMPLE
         Get-IDMDeviceAssignedUser -DeviceID 0a212b6a-e1d2-4985-b9dd-4cf5205662fa
         Returns a managed device user registered in Intune
@@ -226,14 +229,16 @@ Function Get-IDMDeviceAssignedUser{
     param
     (
         [Parameter(Mandatory=$True,ValueFromPipelineByPropertyName=$true,ValueFromPipeline=$true)]
-        $DeviceID
+        $DeviceID,
+        
+        [switch]$Passthru
     )
     Begin{
         # Defining Variables
         $graphApiVersion = "beta"
     }
     Process{
-        $Resource = "deviceManagement/manageddevices('$DeviceID')?`$select=userId"
+        $Resource = "deviceManagement/manageddevices('$DeviceID')"
 
         try {
             $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
@@ -245,7 +250,19 @@ Function Get-IDMDeviceAssignedUser{
         }
     }
     End{
-        return $response.userId
+        If($Passthru){
+            $userdetails = "" | Select-Object userPrincipalName,UserId,userDisplayName,enrolledDateTime,emailAddress,lastSyncDateTime
+            $userdetails.userPrincipalName = $response.userPrincipalName
+            $userdetails.UserId = $response.userId
+            $userdetails.userDisplayName = $response.userDisplayName
+            $userdetails.enrolledDateTime = $response.enrolledDateTime
+            $userdetails.emailAddress = $response.emailAddress
+            $userdetails.lastSyncDateTime = $response.lastSyncDateTime
+            return $userdetails
+        }
+        else{
+            return $response.userId
+        }
     }
 }
 

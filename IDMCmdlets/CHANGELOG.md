@@ -1,8 +1,9 @@
 # Change log for IDMCmdlets
 
-## 1.0.2.1 April 12, 2024
+## 1.0.2.2 April 12, 2024
 
 - Added all switch to get devices. removed IncludeEAS as All is more understandable
+- Added user details for Assigned user instead of just userid. Provides a faster way to resolve UPN
 
 ## 1.0.2.0 March 9, 2024
 
