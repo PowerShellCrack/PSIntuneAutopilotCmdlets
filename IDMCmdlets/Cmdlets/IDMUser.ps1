@@ -20,18 +20,6 @@ Function Get-IDMAzureUser{
     .PARAMETER Property
         Option to filter user based on property.
 
-    .PARAMETER AuthToken
-        Defaults to $Global:AuthToken
-        Header for Graph bearer token. Must be in hashtable format:
-        Name            Value
-        ----            -----
-        Authorization = 'Bearer eyJ0eXAiOiJKV1QiLCJub25jZSI6ImVhMnZPQjlqSmNDOTExcVJtNE1EaEpCd2YyVmRyNXlodjRqejFOOUZhNmciLCJhbGci...'
-        Content-Type = 'application/json'
-        ExpiresOn = '7/29/2022 7:55:14 PM +00:00'
-
-        Use command:
-        Get-IDMGraphAuthToken -User (Connect-MSGraph).UPN
-
     .EXAMPLE
         Get-IDMAzureUser -Id '12981fe3-6049-4039-853f-e20c8d327116'
         Returns specific user by GUID registered with Azure AD
@@ -56,12 +44,15 @@ Function Get-IDMAzureUser{
 
         [Parameter(Mandatory=$false)]
         [ValidateSet('id','userPrincipalName','surname','officeLocation','mail','displayName','givenName')]
-        [String]$Property
+        [String]$Property,
+
+        [Parameter(Mandatory=$false)]
+        [switch]$Passthru
     )
     Begin{
         # Defining Variables
         $graphApiVersion = "beta"
-        $User_resource = "users"
+        $Resource = "users"
     }
     Process{
         If ($PSCmdlet.ParameterSetName -eq "ID"){
@@ -73,18 +64,18 @@ Function Get-IDMAzureUser{
         try {
             if([string]::IsNullOrEmpty($QueryBy))
             {
-                $uri = "$Global:GraphEndpoint/$graphApiVersion/$($User_resource)"
+                $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
                 Write-Verbose $uri
                 $Response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
             }
             else {
                 if([string]::IsNullOrEmpty($Property)){
-                    $uri = "$Global:GraphEndpoint/$graphApiVersion/$($User_resource)/$QueryBy"
+                    $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$QueryBy"
                     Write-Verbose $uri
                     $Response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
                 }
                 else {
-                    $uri = "$Global:GraphEndpoint/$graphApiVersion/$($User_resource)/$QueryBy/$Property"
+                    $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$QueryBy/$Property"
                     Write-Verbose $uri
                     $Response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
                 }
@@ -95,7 +86,15 @@ Function Get-IDMAzureUser{
         }
     }
     End{
-        return $response
+        If($Passthru) {
+            return $Response
+        }
+        Elseif($QueryBy -and -NOT($Property)){
+            return (ConvertFrom-GraphHashtable $Response -ResourceUri "$Global:GraphEndpoint/$graphApiVersion/$($Resource)")
+        }
+        Else{
+            return $Response.Value
+        }
     }
 }
 
@@ -116,18 +115,6 @@ Function Get-IDMAzureUsers{
 
     .PARAMETER IncludeGuests
     [True | False] Include users that have an external label on them
-
-    .PARAMETER AuthToken
-        Defaults to $Global:AuthToken
-        Header for Graph bearer token. Must be in hashtable format:
-        Name            Value
-        ----            -----
-        Authorization = 'Bearer eyJ0eXAiOiJKV1QiLCJub25jZSI6ImVhMnZPQjlqSmNDOTExcVJtNE1EaEpCd2YyVmRyNXlodjRqejFOOUZhNmciLCJhbGci...'
-        Content-Type = 'application/json'
-        ExpiresOn = '7/29/2022 7:55:14 PM +00:00'
-
-        Use command:
-        Get-IDMGraphAuthToken -User (Connect-MSGraph).UPN
 
     .EXAMPLE
         Get-IDMAzureUsers
@@ -159,16 +146,19 @@ Function Get-IDMAzureUsers{
         [ValidateSet('UserPrincipalName','SurName','EMailAddress','SearchDisplayName')]
         [string]$FilterBy = 'UserPrincipalName',
 
-        [switch]$IncludeGuests
+        [switch]$IncludeGuests,
+
+        [Parameter(Mandatory=$false)]
+        [switch]$Passthru
     )
     Begin{
         # Defining Variables
         $graphApiVersion = "beta"
         $Resource = "users"
 
-        If($FilterBy -eq 'SearchDisplayName' -and -NOT($AuthToken['ConsistencyLevel'])){
-            $AuthToken += @{ConsistencyLevel = 'eventual'}
-        }
+        #If($FilterBy -eq 'SearchDisplayName' ){
+        #    $AuthToken += @{ConsistencyLevel = 'eventual'}
+        #}
         $filterQuery=$null
     }
     Process{
@@ -202,7 +192,12 @@ Function Get-IDMAzureUsers{
         }
     }
     End{
-        return $response.value
+        If($Passthru){
+            return $Response.Value
+        }
+        else{
+            return (ConvertFrom-GraphHashtable $Response.Value -ResourceUri "$Global:GraphEndpoint/$graphApiVersion/$Resource")
+        }
     }
 }
 
@@ -217,18 +212,6 @@ Function Get-IDMDeviceAssignedUser{
 
     .PARAMETER DeviceID
         Must be in GUID format. This is for Intune Managed device ID, not the Azure ID or Object ID
-
-    .PARAMETER AuthToken
-        Defaults to $Global:AuthToken
-        Header for Graph bearer token. Must be in hashtable format:
-        Name            Value
-        ----            -----
-        Authorization = 'Bearer eyJ0eXAiOiJKV1QiLCJub25jZSI6ImVhMnZPQjlqSmNDOTExcVJtNE1EaEpCd2YyVmRyNXlodjRqejFOOUZhNmciLCJhbGci...'
-        Content-Type = 'application/json'
-        ExpiresOn = '7/29/2022 7:55:14 PM +00:00'
-
-        Use command:
-        Get-IDMGraphAuthToken -User (Connect-MSGraph).UPN
 
     .EXAMPLE
         Get-IDMDeviceAssignedUser -DeviceID 0a212b6a-e1d2-4985-b9dd-4cf5205662fa
@@ -285,18 +268,6 @@ function Set-IDMDeviceAssignedUser {
     .PARAMETER UPN
         Must be in UPN format (email). This is the user principal name (eg user@domain.com)
 
-    .PARAMETER AuthToken
-        Defaults to $Global:AuthToken
-        Header for Graph bearer token. Must be in hashtable format:
-        Name            Value
-        ----            -----
-        Authorization = 'Bearer eyJ0eXAiOiJKV1QiLCJub25jZSI6ImVhMnZPQjlqSmNDOTExcVJtNE1EaEpCd2YyVmRyNXlodjRqejFOOUZhNmciLCJhbGci...'
-        Content-Type = 'application/json'
-        ExpiresOn = '7/29/2022 7:55:14 PM +00:00'
-
-        Use command:
-        Get-IDMGraphAuthToken -User (Connect-MSGraph).UPN
-
     .EXAMPLE
         Set-IDMDeviceAssignedUser -DeviceID '08d06b3b-8513-417b-80ee-9dc8a3beb377' -UPN 'AdeleV@dtolab.ltd'
         Assigns the user to device'
@@ -350,5 +321,3 @@ function Set-IDMDeviceAssignedUser {
     }
 
 }
-#incase scripts are using old alias
-New-Alias -Name "Get-IDMDeviceAADUser" -Value Get-IDMAzureUser -ErrorAction SilentlyContinue -Force

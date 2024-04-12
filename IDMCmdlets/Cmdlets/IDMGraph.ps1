@@ -367,6 +367,7 @@ function Connect-IDMGraphApp{
 
     If($AppAuthToken)
     {
+        #retrieve token and secure it
         If($AppAuthToken.Authorization){
             $SecureToken = ConvertTo-SecureString ($AppAuthToken.Authorization.Replace('Bearer','').Trim()) -AsPlainText -Force
         }Else{
@@ -513,8 +514,8 @@ Function Invoke-IDMGraphBatchRequests{
 
     .EXAMPLE
         $UriResources = @(
-            'https://graph.microsoft.com/beta/users/c9d00ac2-b07d-4477-961b-442bbc424586/memberOf'
-            'https://graph.microsoft.com/beta/devices/b215decf-4188-4d19-9e22-fb2e89ae0fec/memberOf'
+            'https://graph.microsoft.com/beta/users/79e27b13-bf4d-47d9-a820-5ee8955fcfb4/memberOf'
+            'https://graph.microsoft.com/beta/devices/09692e55-e52c-465b-b2dd-a4e9ed77c428/memberOf'
             'https://graph.microsoft.com/beta/deviceManagement/deviceCompliancePolicies'
             'https://graph.microsoft.com/beta/deviceManagement/deviceComplianceScripts'
             'https://graph.microsoft.com/beta/deviceManagement/deviceConfigurations'
@@ -529,6 +530,7 @@ Function Invoke-IDMGraphBatchRequests{
             'https://graph.microsoft.com/beta/deviceAppManagement/mobileApps'
             'https://graph.microsoft.com/beta/deviceAppManagement/policysets'
         )
+        $uri = $UriResources
         $Response = $UriResources | Invoke-IDMGraphBatchRequests -Headers $Global:AuthToken -verbose
 
     .EXAMPLE
@@ -593,8 +595,8 @@ Function Invoke-IDMGraphBatchRequests{
 
         try {
             Write-Verbose "Get $batchUri"
-            #$response = Invoke-RestMethod -Uri $batchUri -Headers $Headers -Method Post -Body $BatchBody
-            $response = Invoke-MgGraphRequest @RestParams -ErrorAction Stop
+            #$Responses = Invoke-RestMethod -Uri $batchUri -Headers $Headers -Method Post -Body $BatchBody
+            $Responses = (Invoke-MgGraphRequest @RestParams -ErrorAction Stop).responses
         }
         catch {
             Write-ErrorResponse($_)
@@ -602,29 +604,20 @@ Function Invoke-IDMGraphBatchRequests{
         
         If($Passthru){
             #return raw results (including uri, value, next link)
-            Return $response.responses.body
+            Return $Responses
         }
         Else{
-            #build object to return with combined uri and value
+
             $BatchResponses = @()
-            $i=0
-            #loop through each uri
-            Foreach($uri in $response.responses.body){
-                #loop through each item to build object
-                #TEST $Item = $Results.value[0]
-                Foreach($item in $Results.value){
-                    $hashtable = @{}
-                    #TEST $property = $item.GetEnumerator() | select -first 1
-                    foreach( $property in $item.GetEnumerator() )
-                    {
-                        $hashtable[$property.Name] = $property.Value
-                    }
-                    $hashtable['uri'] = ("$Global:GraphEndpoint/$graphApiVersion" + $batch[$i].url + '/' + $item.id)
-                    #convert hashtable to object
-                    $Object = New-Object PSObject -Property $hashtable
-                    $BatchResponses += $Object
-                }
-                $i++
+            #$i= 0
+            #TEST = ($bodyValue = $Responses.body[0]).Value
+            foreach($bodyValue in $Responses.body)
+            {
+                
+                    $BatchResponses += ConvertFrom-GraphHashtable -GraphData $bodyValue.Value `
+                                            -ResourceUri ($bodyValue.'@odata.context'.replace('$metadata#',''))
+                
+                #$i++
             }
             
             return $BatchResponses
@@ -644,7 +637,7 @@ Function Invoke-IDMGraphBatchRequests{
                     {
                         $hashtable[$property] = $Item.$property
                     }
-                    $hashtable['uri'] = "$Global:GraphEndpoint/$graphApiVersion" + $batch[$i].url
+                    $hashtable['uri'] = "$Global:GraphEndpoint/$graphApiVersion" + $Item[$i].url
                     #$hashtable['type'] = (Split-Path $Element.'@odata.context' -Leaf).replace('$metadata#','')
                     $Object = New-Object PSObject -Property $hashtable
                     $BatchResponses += $Object
@@ -867,7 +860,13 @@ Function Invoke-IDMGraphRequests{
         Else{
             #build object to return with combined uri and value
             $Responses = @()
-            $i=0
+            #$i=0
+
+            foreach($item in $Results){
+                $Responses += ConvertFrom-GraphHashtable -GraphData $item.Value -ResourceUri ($item.uri)
+                #$i++
+            }
+            <#
             #loop through each uri
             Foreach($uri in $Results.uri){
                 #loop through each item to build object
@@ -886,10 +885,9 @@ Function Invoke-IDMGraphRequests{
                 }
                 $i++
             }
+            #>
             
             return $Responses
         }
     }
 }
-
-

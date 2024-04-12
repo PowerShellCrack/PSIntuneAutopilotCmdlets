@@ -13,26 +13,14 @@ Function Get-IDMDevice{
     .PARAMETER Filter
     Filters by devicename by looking for characters that are CONTAINED in name. This means it can either be exact of part of the name
 
-    .PARAMETER IncludeEAS
-    [True | False] Excluded by default. Included device managed by Active sync
+    .PARAMETER All
+    [True | False] Excluded by default. Included all devices managed by Intune
 
     .PARAMETER ExcludeMDM
-    [True | False] Excludes and device managed by Mdm. Cannot be combined with IncludeEAS
+    [True | False] Excludes and device managed by Mdm. Cannot be combined with All
 
     .PARAMETER Expand
     [True | False] Gets Azure device object and merges with Intune results. If results are larger than 1000; issue may arise.
-
-    .PARAMETER AuthToken
-    Defaults to $Global:AuthToken
-    Header for Graph bearer token. Must be in hashtable format:
-    Name            Value
-    ----            -----
-    Authorization = 'Bearer eyJ0eXAiOiJKV1QiLCJub25jZSI6ImVhMnZPQjlqSmNDOTExcVJtNE1EaEpCd2YyVmRyNXlodjRqejFOOUZhNmciLCJhbGci...'
-    Content-Type = 'application/json'
-    ExpiresOn = '7/29/2022 7:55:14 PM +00:00'
-
-    Use command:
-    Get-IDMGraphAuthToken -User (Connect-MSGraph).UPN
 
     .EXAMPLE
     Get-IDMDevice -Filter DTOLAB
@@ -43,7 +31,7 @@ Function Get-IDMDevice{
     Returns all managed devices but excludes EAS devices registered within the Intune Service
 
     .EXAMPLE
-    Get-IDMDevice -IncludeEAS
+    Get-IDMDevice -All
     Returns all managed devices including EAS devices registered within the Intune Service
 
     .EXAMPLE
@@ -65,13 +53,17 @@ Function Get-IDMDevice{
         [string]$Filter,
 
         [Parameter(Mandatory=$false)]
-        [switch]$IncludeEAS,
+        [Alias('IncludeEAS')]
+        [switch]$All,
 
         [Parameter(Mandatory=$false)]
         [switch]$ExcludeMDM,
 
         [Parameter(Mandatory=$false)]
-        [switch]$Expand
+        [switch]$Expand,
+
+        [Parameter(Mandatory=$false)]
+        [hashtable]$Passthru
     )
 
     # Defining Variables
@@ -80,58 +72,101 @@ Function Get-IDMDevice{
 
     $filterQuery=$null
 
-    if($IncludeEAS.IsPresent){ $Count_Params++ }
+    if($All.IsPresent){ $Count_Params++ }
     if($ExcludeMDM.IsPresent){ $Count_Params++ }
 
     if($Count_Params -gt 1){
-        write-warning "Multiple parameters set, specify a single parameter -IncludeEAS, -ExcludeMDM or no parameter against the function"
+        write-warning "Multiple parameters set, specify a single parameter -All, -ExcludeMDM or no parameter against the function"
         break
     }
 
-    $Query = @()
-    if($IncludeEAS){
+    $OrQuery = @()
+    $AndQuery = @()
+
+    If($All){
         #include all queries by leaving filter empty
     }
     Elseif($ExcludeMDM){
-        $Query += "managementAgent eq 'eas'"
-        $Query += "managementAgent eq 'easIntuneClient'"
-        $Query += "managementAgent eq 'configurationManagerClientEas'"
+        $OrQuery += "managementAgent eq 'configurationManagerClientEas'"
+        $OrQuery += "managementAgent eq 'easIntuneClient'"
+        $OrQuery += "managementAgent eq 'eas'"
     }
     Else{
-        $Query += "managementAgent eq 'mdm'"
-        $Query += "managementAgent eq 'easMdm'"
-        $Query += "managementAgent eq 'intuneClient'"
-        $Query += "managementAgent eq 'configurationManagerClient'"
-        $Query += "managementAgent eq 'configurationManagerClientMdm'"
+        $OrQuery += "managementAgent eq 'configurationManagerClientMdm'"
+        $OrQuery += "managementAgent eq 'configurationManagerClient'"
+        $OrQuery += "managementAgent eq 'intuneClient'"
+        $OrQuery += "managementAgent eq 'mdm'"
+        $OrQuery += "managementAgent eq 'easMdm'"
     }
 
     If($PSBoundParameters.ContainsKey('Filter')){
         #TEST $Filter = '46VEYL1'
-        $Query += "contains(deviceName,'$($Filter)')"
+        $AndQuery += "contains(deviceName,'$($Filter)')"
     }
 
+    #TEST $Platform = 'Windows'
     If($PSBoundParameters.ContainsKey('Platform')){
-        $Query += "operatingSystem eq '$($Platform)'"
+        $AndQuery += "operatingSystem eq '$($Platform)'"
     }
 
-    #build query filter if exists
-    If($Query.count -ge 1){
-        $filterQuery = "`?`$filter=" + ($Query -join ' and ')
+    #append ?$filter once, then apply orquery and andquery
+    If($OrQuery -or $AndQuery){
+        $filterQuery = @('?$filter=')
+        If($OrQuery.count -ge 1){
+            $filterQuery += "(" + ($OrQuery -join ' or ') + ")"
+        }
+        If($filterQuery.count -ge 2 -and $AndQuery.count -ge 1){
+            $filterQuery += ' and ' 
+        }
+        If($AndQuery.count -ge 1){
+            $filterQuery += "(" + ($AndQuery -join ' and ') + ")"
+        }
+        $filterQuery = $filterQuery -join ''
+    }Else{
+        $filterQuery = $null
     }
+
+    $allPages = @()
 
     $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource" + $filterQuery
-
     try {
-        Write-Verbose "Get $uri"
-        $Response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
+        Write-Verbose ("Invoking API: {0}" -f $uri)
+        $graphData = (Invoke-MgGraphRequest -Method Get -Uri $uri)
     }
     catch {
-        Write-ErrorResponse($_)
+        New-Exception -Exception $_.Exception
     }
+    #add the first page of results to the array
+    $allPages += $graphData.value
 
+    #if there is a nextLink property, then there are more pages of results
+    if ($graphData.'@odata.nextLink') {
+
+        try {
+            
+            #loop through the pages of results until there is no nextLink property
+            do {
+
+                $graphData = (Invoke-MgGraphRequest -Uri $graphData.'@odata.nextLink')
+                $allPages += $graphData.value
+
+            } until (
+                !$graphData.'@odata.nextLink'
+            )
+            
+        }
+        catch {
+            New-Exception -Exception $_.Exception
+        }  
+    }
+    #return the array of results
+    $graphData = $allPages
+    
+    
     If($Expand)
     {
         $Devices = @()
+        $AzureDeviceParam = @{}
         #Populate AAD devices using splat for filter and platform to minimize seach field
         # this is becuse if results are more than gropah will show, the results coudl be skewed.
 
@@ -142,21 +177,23 @@ Function Get-IDMDevice{
             $AzureDeviceParam += @{Platform = $Platform}
         }
 
+        $IntuneDeviceObject = ConvertFrom-GraphHashtable -GraphData $graphData -ResourceUri "$Global:GraphEndpoint/$graphApiVersion/$Resource"
+
         #Call another Azure cmdlet
         #Write-Verbose ($AzureDeviceParam.GetEnumerator() | Format-List | Out-String)
         $AADObjects = Get-IDMAzureDevices @AzureDeviceParam
 
-        #TEST $Item = $Response.Value | Where deviceName -eq 'DTOLAB-46VEYL1'
-        Foreach($Item in $Response.Value)
+        #TEST $Item = $IntuneDeviceObject | Where {$_.deviceName -eq 'DTOLAB-WHKV102'}
+        Foreach($IntuneItem in $IntuneDeviceObject)
         {
             $OutputItem = New-Object PSObject
             #first add all properties of Intune device
             Foreach($p in $Item | Get-Member -MemberType NoteProperty){
-                $OutputItem | Add-Member NoteProperty $p.name -Value $Item.($p.name)
+                $OutputItem | Add-Member NoteProperty $p.name -Value $IntuneItem.($p.name)
             }
 
-            #TEST $LinkedIntuneDevice = $AADObjects | Where displayName -eq 'DTOLAB-46VEYL1'
-            If($LinkedIntuneDevice = $AADObjects | Where deviceId -eq $Item.azureADDeviceId){
+            #TEST $LinkedIntuneDevice = $AADObjects | Where displayName -eq 'DTOLAB-WHKV102'
+            If($LinkedIntuneDevice = $AADObjects | Where deviceId -eq $IntuneItem.azureADDeviceId){
 
                 Foreach($p in $LinkedIntuneDevice | Get-Member -MemberType NoteProperty){
                     switch($p.name){
@@ -174,10 +211,14 @@ Function Get-IDMDevice{
         }
     }
     Else{
-        $Devices = $Response.Value
+        $Devices = $graphData
     }
 
-    return $Devices
+    If($Passthru -or $Expand){
+        return $Devices
+    }Else{
+        return (ConvertFrom-GraphHashtable -GraphData $Devices -ResourceUri "$Global:GraphEndpoint/$graphApiVersion/$Resource")
+    }
 }
 
 Function Get-IDMDevices{
@@ -195,11 +236,11 @@ Function Get-IDMDevices{
     .PARAMETER Filter
     Filters by devicename by looking for characters that are CONTAINED in name. This means it can either be exact of part of the name
 
-    .PARAMETER IncludeEAS
-    [True | False] Excluded by default. Included device managed by Active sync
+    .PARAMETER All
+    [True | False] Excluded by default. Included all devices
 
     .PARAMETER ExcludeMDM
-    [True | False] Excludes and device managed by Mdm. Cannot be combined with IncludeEAS
+    [True | False] Excludes and device managed by Mdm. Cannot be combined with All
 
     .PARAMETER Expand
     [True | False] Gets Azure device object and merges with Intune results. This will query each individual device use multithread query
@@ -217,7 +258,7 @@ Function Get-IDMDevices{
     Returns all managed devices but excludes EAS devices registered within the Intune Service
 
     .EXAMPLE
-    Get-IDMDevice -IncludeEAS
+    Get-IDMDevice -All
     Returns all managed devices including EAS devices registered within the Intune Service
 
     .EXAMPLE
@@ -239,7 +280,8 @@ Function Get-IDMDevices{
         [string]$Filter,
 
         [Parameter(Mandatory=$false)]
-        [switch]$IncludeEAS,
+        [Alias('IncludeEAS')]
+        [switch]$All,
 
         [Parameter(Mandatory=$false)]
         [switch]$ExcludeMDM,
@@ -256,43 +298,58 @@ Function Get-IDMDevices{
 
     $filterQuery=$null
 
-    if($IncludeEAS.IsPresent){ $Count_Params++ }
+    if($All.IsPresent){ $Count_Params++ }
     if($ExcludeMDM.IsPresent){ $Count_Params++ }
 
     if($Count_Params -gt 1){
-        write-warning "Multiple parameters set, specify a single parameter -IncludeEAS, -ExcludeMDM or no parameter against the function"
+        write-warning "Multiple parameters set, specify a single parameter -All, -ExcludeMDM or no parameter against the function"
         break
     }
 
-    $Query = @()
-    if($IncludeEAS){
+    $OrQuery = @()
+    $AndQuery = @()
+    
+    If($All){
         #include all queries by leaving filter empty
     }
     Elseif($ExcludeMDM){
-        $Query += "managementAgent eq 'eas'"
-        $Query += "managementAgent eq 'easIntuneClient'"
-        $Query += "managementAgent eq 'configurationManagerClientEas'"
+        $OrQuery += "managementAgent eq 'configurationManagerClientEas'"
+        $OrQuery += "managementAgent eq 'easIntuneClient'"
+        $OrQuery += "managementAgent eq 'eas'"
     }
     Else{
-        $Query += "managementAgent eq 'mdm'"
-        $Query += "managementAgent eq 'easMdm'"
-        $Query += "managementAgent eq 'intuneClient'"
-        $Query += "managementAgent eq 'configurationManagerClient'"
-        $Query += "managementAgent eq 'configurationManagerClientMdm'"
+        $OrQuery += "managementAgent eq 'configurationManagerClientMdm'"
+        $OrQuery += "managementAgent eq 'configurationManagerClient'"
+        $OrQuery += "managementAgent eq 'intuneClient'"
+        $OrQuery += "managementAgent eq 'mdm'"
+        $OrQuery += "managementAgent eq 'easMdm'"
     }
 
     If($PSBoundParameters.ContainsKey('Filter')){
         #TEST $Filter = '46VEYL1'
-        $Query += "contains(deviceName,'$($Filter)')"
+        $AndQuery += "contains(deviceName,'$($Filter)')"
     }
 
+    #TEST $Platform = 'Windows'
     If($PSBoundParameters.ContainsKey('Platform')){
-        $Query += "operatingSystem eq '$($Platform)'"
+        $AndQuery += "operatingSystem eq '$($Platform)'"
     }
 
-    #build query filter if exists
-    If($Query.count -ge 1){
-        $filterQuery = "`?`$filter=" + ($Query -join ' and ')
+    #append ?$filter once, then apply orquery and andquery
+    If($OrQuery -or $AndQuery){
+        $filterQuery = @('?$filter=')
+        If($OrQuery.count -ge 1){
+            $filterQuery += "(" + ($OrQuery -join ' or ') + ")"
+        }
+        If($filterQuery.count -ge 2 -and $AndQuery.count -ge 1){
+            $filterQuery += ' and ' 
+        }
+        If($AndQuery.count -ge 1){
+            $filterQuery += "(" + ($AndQuery -join ' and ') + ")"
+        }
+        $filterQuery = $filterQuery -join ''
+    }Else{
+        $filterQuery = $null
     }
 
     $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource" + $filterQuery
@@ -312,7 +369,7 @@ Function Get-IDMDevices{
         #Populate AAD devices using splat for filter and platform to minimize seach field
         # this is becuse if results are more than gropah will show, the results coudl be skewed.
 
-        #TEST $Item = $Response.Value | Where deviceName -eq 'DTOLAB-46VEYL1'
+        #TEST $Item = $Response.Value | Where deviceName -eq 'DTOLAB-WHKV102'
         Foreach($Item in $Response.Value)
         {
             $AzureDevicesUris += "$Global:GraphEndpoint/$graphApiVersion/devices?`$filter=displayName eq '$($Item.deviceName)'"
@@ -320,7 +377,7 @@ Function Get-IDMDevices{
         #invoke a query on all
         $AzureDevices = $AzureDevicesUris | Invoke-IDMGraphBatchRequests -Verbose:$VerbosePreference
 
-        #TEST $Item = $Response.Value | Where deviceName -eq 'DTOLAB-46VEYL1'
+        #TEST $Item = $Response.Value | Where deviceName -eq 'DTOLAB-WHKV102'
         Foreach($Item in $Response.Value)
         {
             $OutputItem = New-Object PSObject
@@ -329,7 +386,7 @@ Function Get-IDMDevices{
                 $OutputItem | Add-Member NoteProperty $p.name -Value $Item.($p.name)
             }
 
-            #TEST $LinkedIntuneDevice = $AADObjects | Where displayName -eq 'DTOLAB-46VEYL1'
+            #TEST $LinkedIntuneDevice = $AADObjects | Where displayName -eq 'DTOLAB-WHKV102'
             If($LinkedIntuneDevice = $AzureDevices | Where deviceId -eq $Item.azureADDeviceId){
 
                 Foreach($p in $LinkedIntuneDevice | Get-Member -MemberType NoteProperty){
@@ -418,7 +475,7 @@ Function Get-IDMAzureDevices{
         $Resource = "devices"
         $RequestParams = @{}
 
-        If( ($FilterBy -eq 'SearchDisplayName') -and -NOT($AuthToken['ConsistencyLevel'])){
+        If( ($FilterBy -eq 'SearchDisplayName') ){
             $RequestParams += @{"Headers" = @{ConsistencyLevel = 'eventual'}}
         }
         $filterQuery=$null
@@ -433,10 +490,10 @@ Function Get-IDMAzureDevices{
         If($PSBoundParameters.ContainsKey('Filter')){
              switch($FilterBy){
                 'DisplayName' {$Query += "displayName eq '$Filter'";$Operator='filter'}
-                'StartWithDisplayName' {$Query += "startswith(displayName, '$Filter')";$Operator='filter'}
-                'NOTStartWithDisplayName' {$Query += "NOT startsWith(displayName, '$Filter')";$Operator='filter'}
+                'StartWithDisplayName' {$Query += "startswith(displayName,'$Filter')";$Operator='filter'}
+                'NOTStartWithDisplayName' {$Query += "NOT startsWith(displayName,'$Filter')";$Operator='filter'}
                 'SearchDisplayName' {$Query += "`"displayName:$Filter`"";$Operator='search'}
-                default {$Query += "startswith(displayName, '$Filter')";$Operator='filter'}
+                default {$Operator='filter'}
             }
         }
 
@@ -459,7 +516,7 @@ Function Get-IDMAzureDevices{
         If($Passthru){
             return $Response
         }Else{
-            return $Response.Value
+            return (ConvertFrom-GraphHashtable -GraphData $Response.Value -ResourceUri "$Global:GraphEndpoint/$graphApiVersion/$Resource")
         }
     }
 }
@@ -478,18 +535,6 @@ Function Get-IDMDevicePendingActions{
 
     .PARAMETER DeviceID
         Must be in GUID format. This is for Intune Managed device ID, not the Azure ID or Object ID
-
-    .PARAMETER AuthToken
-        Defaults to $Global:AuthToken
-        Header for Graph bearer token. Must be in hashtable format:
-        Name            Value
-        ----            -----
-        Authorization = 'Bearer eyJ0eXAiOiJKV1QiLCJub25jZSI6ImVhMnZPQjlqSmNDOTExcVJtNE1EaEpCd2YyVmRyNXlodjRqejFOOUZhNmciLCJhbGci...'
-        Content-Type = 'application/json'
-        ExpiresOn = '7/29/2022 7:55:14 PM +00:00'
-
-        Use command:
-        Get-IDMGraphAuthToken -User (Connect-MSGraph).UPN
 
     .EXAMPLE
         Get-IDMDevicePendingActions -DeviceID 08d06b3b-8513-417b-80ee-9dc8a3beb377
@@ -512,12 +557,11 @@ Function Get-IDMDevicePendingActions{
     Begin{
         # Defining Variables
         $graphApiVersion = "beta"
+        $Resource = "deviceManagement/managedDevices"
     }
     Process{
-        $Resource = "deviceManagement/manageddevices/$DeviceID"
-
         try {
-            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
+            $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource/$DeviceID"
             Write-Verbose "Get $uri"
             $response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
         }
@@ -526,10 +570,12 @@ Function Get-IDMDevicePendingActions{
         }
     }
     End{
+        $DeviceState = (ConvertFrom-GraphHashtable -GraphData $Response).deviceActionResults
+
         If($AllActions){
-            return $response.deviceActionResults
+            return $DeviceState.deviceActionResults
         }Else{
-            return ($response.deviceActionResults | Where actionState -eq 'pending')
+            return ($DeviceState.deviceActionResults | Where actionState -eq 'pending')
         }
 
     }
@@ -551,7 +597,7 @@ Function Get-IDMDeviceCategory{
     Get-IDMDeviceCategory
     #>
     [cmdletbinding()]
-    param()
+    param([switch]$Passthru)
 
     # Defining Variables
     $graphApiVersion = "beta"
@@ -566,9 +612,13 @@ Function Get-IDMDeviceCategory{
     catch {
         Write-ErrorResponse($_)
     }
-    Finally{
-        $response.Value
+    
+    If($Passthru){
+        return $response.value
+    }else {
+        return (ConvertFrom-GraphHashtable -GraphData $Response.Value -ResourceUri $uri)
     }
+    
 }
 
 
@@ -601,7 +651,7 @@ Function Set-IDMDeviceCategory{
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/managedDevices"
 
-    $Categories = Get-IDMDeviceCategory -AuthToken $AuthToken
+    $Categories = Get-IDMDeviceCategory
     $CategoryId = ($Categories | Where displayName -eq $Category).id
 
     #$requestBody = @{ "@odata.id" = "https://graph.microsoft.com/$graphApiVersion/deviceManagement/deviceCategories/3137f37d-ff7c-48ec-af57-d4404faf844e" }
@@ -664,12 +714,11 @@ Function Invoke-IDMDeviceAction{
             $WhatIfPreference = $PSCmdlet.SessionState.PSVariable.GetValue('WhatIfPreference')
         }
         $graphApiVersion = "Beta"
+
+        $RequestParams = @{}
     }
     Process{
-        $RequestParams = @{
-            Headers=$AuthToken
-        }
-
+        
         switch($Action){
 
             'RemoteLock'
@@ -1006,7 +1055,8 @@ Function Get-IDMStaleDevices{
     [cmdletbinding()]
     param
     (
-        [Int]$cutoffDays
+        [Int]$cutoffDays,
+        [switch]$Passthru
     )
     # Defining Variables
     $graphApiVersion = "beta"
@@ -1024,16 +1074,13 @@ Function Get-IDMStaleDevices{
     try {
         $devices = (Invoke-MgGraphRequest -Uri $uri -Method Get).Value
     }catch {
-        $ex = $_.Exception
-        $errorResponse = $ex.Response.GetResponseStream()
-        $reader = New-Object System.IO.StreamReader($errorResponse)
-        $reader.BaseStream.Position = 0
-        $reader.DiscardBufferedData()
-        $responseBody = $reader.ReadToEnd();
-        Write-Host "Failed to retrieve managed devices; response content: `n$responseBody" -ForegroundColor Red
-        Write-Host "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)" -ForegroundColor Red
+        Write-ErrorResponse($_.Exception)
     }
-    return $devices
+    If($Passthru){
+        return $devices
+    }Else{
+        return (ConvertFrom-GraphHashtable -GraphData $devices -ResourceUri "$Global:GraphEndpoint/$graphApiVersion/$Resource")
+    }
 }
 
 Function Get-IDMStaleAzureDevices{
@@ -1053,7 +1100,8 @@ Function Get-IDMStaleAzureDevices{
     [cmdletbinding()]
     param
     (
-        [Int]$cutoffDays
+        [Int]$cutoffDays,
+        [switch]$Passthru
     )
     # Defining Variables
     $graphApiVersion = "beta"
@@ -1075,16 +1123,14 @@ Function Get-IDMStaleAzureDevices{
         Write-Verbose $uri
         $devices = (Invoke-MgGraphRequest -Uri $uri -Method Get).Value | Where {($_.ApproximateLastLogonTimeStamp -le $cutoffDate) -and ($_.AccountEnabled -eq $false)}
     }catch {
-        $ex = $_.Exception
-        $errorResponse = $ex.Response.GetResponseStream()
-        $reader = New-Object System.IO.StreamReader($errorResponse)
-        $reader.BaseStream.Position = 0
-        $reader.DiscardBufferedData()
-        $responseBody = $reader.ReadToEnd();
-        Write-Host "Failed to retrieve managed devices; response content: `n$responseBody" -ForegroundColor Red
-        Write-Host "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)" -ForegroundColor Red
+        Write-ErrorResponse($_.Exception)
     }
-    return $devices
+
+    If($Passthru){
+        return $devices
+    }Else{
+        return (ConvertFrom-GraphHashtable -GraphData $devices -ResourceUri "$Global:GraphEndpoint/$graphApiVersion/$Resource")
+    }
 }
 
 function Remove-IDMStaleDevices{
@@ -1119,14 +1165,7 @@ function Remove-IDMStaleDevices{
         Write-Output "Sending delete command to $DeviceID"
         Invoke-MgGraphRequest -Uri $uri -Method Delete -UseBasicParsing
     }catch {
-        $ex = $_.Exception
-        $errorResponse = $ex.Response.GetResponseStream()
-        $reader = New-Object System.IO.StreamReader($errorResponse)
-        $reader.BaseStream.Position = 0
-        $reader.DiscardBufferedData()
-        $responseBody = $reader.ReadToEnd();
-        Write-Verbose "response content: `n$responseBody"
-        Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+        Write-ErrorResponse($_.Exception)
     }
 }
 
@@ -1144,7 +1183,7 @@ Function Get-IDMAzureDeviceExtension {
         [string]$DeviceID,
 
         [Parameter(Mandatory=$false)]
-        [ValidateRange(1-15)]
+        [ValidateRange(1,15)]
         [int]$ExtensionID
     )
     $graphApiVersion = "beta"
@@ -1156,20 +1195,15 @@ Function Get-IDMAzureDeviceExtension {
         Write-Verbose $uri
         $response = Invoke-MgGraphRequest -Uri $uri -Method Get
     }catch {
-        $ex = $_.Exception
-        $errorResponse = $ex.Response.GetResponseStream()
-        $reader = New-Object System.IO.StreamReader($errorResponse)
-        $reader.BaseStream.Position = 0
-        $reader.DiscardBufferedData()
-        $responseBody = $reader.ReadToEnd();
-        Write-Verbose "response content: `n$responseBody"
-        Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode) $($ex.Response.StatusDescription)"
+        Write-ErrorResponse($_.Exception)
     }
 
+    $DeviceExtensions = (ConvertFrom-GraphHashtable -GraphData $Response.extensionAttributes -ResourceUri $uri).extensionAttributes
+
     If($ExtensionID){
-        Return $response.extensionAttributes | Select -ExpandProperty "extensionAttribute$($ExtensionID)"
+        Return $DeviceExtensions | Select -ExpandProperty "extensionAttribute$($ExtensionID)"
     }Else{
-        Return $response.extensionAttributes
+        Return $DeviceExtensions
     }
 
 }
@@ -1212,14 +1246,7 @@ Function Set-IDMAzureDeviceExtension {
         $null = Invoke-MgGraphRequest -Uri $uri -Method Patch -Body $JsonBody
     }
     catch {
-        $ex = $_.Exception
-        $errorResponse = $ex.Response.GetResponseStream()
-        $reader = New-Object System.IO.StreamReader($errorResponse)
-        $reader.BaseStream.Position = 0
-        $reader.DiscardBufferedData()
-        $responseBody = $reader.ReadToEnd();
-        Write-Verbose "response content: `n$responseBody"
-        Write-Error "Request to $Uri failed with HTTP Status $($ex.Response.StatusCode): $($ex.Response.StatusDescription)"
+        Write-ErrorResponse($_.Exception)
     }
 }
 
@@ -1239,30 +1266,17 @@ Function Get-IDMIntuneAssignments{
         [Device | User]. Specify which assignment to pull. Target id is associated
 
     .PARAMETER TargetId
-        Must be in guid format. SHould be id of device or id of user
+        Must be in guid format. Should be id of device or id of user
 
     .PARAMETER TargetSet
         Must be in hashtable format. Should contain an id of device and/or id of user
         eg. @{devices='b215decf-4188-4d19-9e22-fb2e89ae0fec';users='c9d00ac2-b07d-4477-961b-442bbc424586'}
 
-    .PARAMETER AuthToken
-        Defaults to $Global:AuthToken
-        Header for Graph bearer token. Must be in hashtable format:
-        Name            Value
-        ----            -----
-        Authorization = 'Bearer eyJ0eXAiOiJKV1QiLCJub25jZSI6ImVhMnZPQjlqSmNDOTExcVJtNE1EaEpCd2YyVmRyNXlodjRqejFOOUZhNmciLCJhbGci...'
-        Content-Type = 'application/json'
-        ExpiresOn = '7/29/2022 7:55:14 PM +00:00'
-
-        Use command:
-        Get-IDMGraphAuthToken -User (Connect-MSGraph).UPN
-
-
     .EXAMPLE
     $targetSet = @{devices=$syncHash.Data.SelectedDevice.azureADObjectId;users=$syncHash.Data.AssignedUser.id}
     $platform = $syncHash.Data.SelectedDevice.OperatingSystem
 
-    Get-IDMIntuneAssignments -TargetSet $targetSet -Platform $platform -AuthToken $syncHash.Data.AuthToken -IncludePolicySetInherits
+    Get-IDMIntuneAssignments -TargetSet $targetSet -Platform $platform -IncludePolicySetInherits
     #>
     [cmdletbinding()]
     Param(
@@ -1295,7 +1309,7 @@ Function Get-IDMIntuneAssignments{
         $UriResources += $TargetSet.GetEnumerator() | %{"$Global:GraphEndpoint/$graphApiVersion/$($_.Name)/$($_.Value)/memberOf"}
     }
     Else{
-        $UriResources += "$Global:GraphEndpoint/$graphApiVersion/$($Target.ToLower())/memberOf"
+        $UriResources += "$Global:GraphEndpoint/$graphApiVersion/$($Target.ToLower())/$TargetId/memberOf"
     }
 
     #loop through each Intune Component, then get assignments for each
@@ -1375,7 +1389,7 @@ Function Get-IDMIntuneAssignments{
     #No Passthru will out value only
     #$GraphRequests = $UriResources | Invoke-IDMGraphRequests -Threads $UriResources.Count
     $GraphRequests = $UriResources | Invoke-IDMGraphBatchRequests -Verbose:$VerbosePreference
-    #$GraphRequests = $UriResources | Invoke-IDMGraphRequests -Headers $AuthToken
+    #$GraphRequests = $UriResources | Invoke-IDMGraphRequests
 
     $DeviceGroups = ($GraphRequests | Where {$_.uri -like '*/devices/*/memberOf'})
     $UserGroups = ($GraphRequests | Where {$_.uri -like '*/users/*/memberOf'})

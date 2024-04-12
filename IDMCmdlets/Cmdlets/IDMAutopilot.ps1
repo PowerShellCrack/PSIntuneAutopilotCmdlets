@@ -19,7 +19,11 @@ Function Get-IDMAutopilotProfile{
     param
     (
         [Parameter(Mandatory=$false)]
-        $id
+        $id,
+        [Parameter(Mandatory=$false)]
+        [switch]$ExpandAssigments,
+        [Parameter(Mandatory=$false)]
+        [switch]$Passthru
     )
 
     # Defining Variables
@@ -34,32 +38,60 @@ Function Get-IDMAutopilotProfile{
         $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource"
     }
 
+    if ($ExpandAssigments) {
+        $uri = $uri + "?`$expand=assignments"
+    }
+
     # add method to the request, Exclude URI from the request so that it won't concflict with nextLink URI
 
     Write-Verbose "GET $uri"
 
+    #Collect the results of the API call
     try {
-        $response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
-        if ($id) {
-            $response
-        }
-        else {
-            $devices = $response.value
-
-            $devicesNextLink = $response."@odata.nextLink"
-
-            while ($null -ne $devicesNextLink){
-                $devicesResponse = (Invoke-MgGraphRequest -Uri $devicesNextLink -Method Get)
-                $devicesNextLink = $devicesResponse."@odata.nextLink"
-                $devices += $devicesResponse.value
-            }
-
-            $devices
-        }
+        Write-Verbose ("Invoking API: {0}" -f $uri)
+        $graphData = (Invoke-MgGraphRequest -Method Get -Uri $uri)
     }
     catch {
         Write-ErrorResponse($_)
     }
+
+    #detect if the response has a nextLink property
+    if ($id) {
+        $allPages += $graphData
+    }
+    else {
+        #add the first page of results to the array
+        $allPages += $graphData.value
+
+        #if there is a nextLink property, then there are more pages of results
+        if ($graphData.'@odata.nextLink') {
+
+            try {
+                
+                #loop through the pages of results until there is no nextLink property
+                do {
+
+                    $graphData = (Invoke-MgGraphRequest -Uri $graphData.'@odata.nextLink')
+                    $allPages += $graphData.value
+
+                } until (
+                    !$graphData.'@odata.nextLink'
+                )
+                
+            }
+            catch {
+                Write-ErrorResponse($_)
+            }  
+        }
+    }
+
+    If($Passthru){
+        return $allPages
+    }
+    else{
+        return (ConvertFrom-GraphHashtable $allPages -ResourceUri $uri)
+    }
+    
 }
 
 
@@ -90,23 +122,29 @@ Function Get-IDMAutopilotDevice{
     [cmdletbinding()]
     param
     (
-        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$True)]
-        $id,
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$True,ValueFromPipeline=$True,Position=0)]
+        [string[]]$Id,
 
         [Parameter(Mandatory=$false)]
-        $serial,
+        $Serial,
 
         [Parameter(Mandatory=$false)]
-        [Switch]$expand
+        [Switch]$Expand,
+
+        [Parameter(Mandatory=$false)]
+        [switch]$Passthru
     )
-
-    Process {
-
+    Begin{
         # Defining Variables
         $graphApiVersion = "beta"
         $Resource = "deviceManagement/windowsAutopilotDeviceIdentities"
 
-        if ($id -and $expand) {
+        $allPages = @()
+        $devices = @()
+    }
+    Process {
+        
+        if ($id -and $Expand) {
             $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$($id)?`$expand=deploymentProfile,intendedDeploymentProfile"
         }
         elseif ($id) {
@@ -122,32 +160,59 @@ Function Get-IDMAutopilotDevice{
 
         Write-Verbose "GET $uri"
 
+        #Collect the results of the API call
         try {
-            $response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
-            if ($id) {
-                $response
-            }
-            else {
-                $devices = $response.value
-                $devicesNextLink = $response."@odata.nextLink"
-
-                while ($null -ne $devicesNextLink){
-                    $devicesResponse = (Invoke-MgGraphRequest -Uri $devicesNextLink -Method Get -ErrorAction Stop)
-                    $devicesNextLink = $devicesResponse."@odata.nextLink"
-                    $devices += $devicesResponse.value
-                }
-
-                if ($expand) {
-                    $devices | Get-IDMAutopilotDevice -Expand
-                }
-                else
-                {
-                    $devices
-                }
-            }
+            Write-Verbose ("Invoking API: {0}" -f $uri)
+            $graphData = (Invoke-MgGraphRequest -Method Get -Uri $uri)
         }
         catch {
             Write-ErrorResponse($_)
+        }
+
+        #detect if the response has a nextLink property
+        if ($id) {
+            $allPages += $graphData
+        }
+        else {
+            #add the first page of results to the array
+            $allPages += $graphData.value
+    
+            #if there is a nextLink property, then there are more pages of results
+            if ($graphData.'@odata.nextLink') {
+
+                try {
+                    
+                    #loop through the pages of results until there is no nextLink property
+                    do {
+
+                        $graphData = (Invoke-MgGraphRequest -Uri $graphData.'@odata.nextLink')
+                        $allPages += $graphData.value
+
+                    } until (
+                        !$graphData.'@odata.nextLink'
+                    )
+                    
+                }
+                catch {
+                    Write-ErrorResponse($_)
+                }  
+            }
+        }
+  
+    }End{
+        if ( ($Null -eq $id) -and $Expand) {
+            $devices += $allPages.id | Get-IDMAutopilotDevice -Expand
+        }
+        else {
+            $devices += $allPages
+        }
+
+        Write-Verbose "Returning $($devices.Count) devices"
+        If($Passthru){
+            return $devices
+        }
+        else{
+            return (ConvertFrom-GraphHashtable $devices -ResourceUri $uri)
         }
     }
 }
@@ -217,4 +282,55 @@ Function Set-IDMAutopilotDeviceTag{
             Write-ErrorResponse($_)
         }
     }
+}
+
+
+Function Add-IDMAutopilotProfileToDevice{
+    
+    <#
+    .SYNOPSIS
+    Assigns a Windows Autopilot profile to a device.
+
+    .DESCRIPTION
+    The Add-AutopilotProfileToDevice cmdlet assigns a Windows Autopilot profile to a device.
+
+    .PARAMETER APProfileId
+    The ID of the Windows Autopilot profile to assign to the device.
+
+    .PARAMETER DeviceID
+    The ID of the device to assign the Windows Autopilot profile to.
+
+    .EXAMPLE
+    Assign a Windows Autopilot profile to a device.
+
+    Add-AutopilotProfileToDevice -APProfileId "c50d642a-e8d7-4f84-9dc2-3540303b1acf" -deviceID "c50d642a-e8d7-4f84-9dc2-3540303b1acf"
+    #>
+    [cmdletbinding()]
+    param
+    (
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$True)]
+        $APProfileId,
+
+        [Parameter(Mandatory=$true,ValueFromPipelineByPropertyName=$True)]
+        $DeviceID
+    )
+    Begin{
+        # Defining Variables
+        $graphApiVersion = "beta"
+        $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
+    }
+    Process {
+        $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource/$APProfileId/assign"
+        $requestBody = @{ deviceIds = @($deviceID) }
+        $BodyJson = $requestBody | ConvertTo-Json
+
+        try {
+            Write-Verbose "GET $uri"
+            $null = Invoke-MgGraphRequest -Uri $uri -Body $BodyJson -Method POST -ErrorAction Stop
+        }
+        catch {
+            Write-ErrorResponse($_)
+        }
+    }
+    
 }

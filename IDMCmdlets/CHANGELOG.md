@@ -1,5 +1,16 @@
 # Change log for IDMCmdlets
 
+## 1.0.2.1 April 12, 2024
+
+- Added all switch to get devices. removed IncludeEAS as All is more understandable
+
+## 1.0.2.0 March 9, 2024
+
+- Fixed Autopilot profile expand parameter
+- Added ability to assign device id to Autopilot profile id
+- Converted all graph hash output to objects
+- Fixed device queries based on management agent type; used or operator
+
 ## 1.0.1.9 March 8, 2024
 
 - Converted AppSecret to secure string

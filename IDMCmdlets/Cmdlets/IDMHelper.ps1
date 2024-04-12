@@ -165,3 +165,47 @@ function Split-IDMRequests {
         return $Array
     }
 }
+
+
+Function ConvertFrom-GraphHashtable{
+    param(
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
+        [AllowEmptyString()]
+        $GraphData,
+
+        [Parameter(Mandatory=$false)]
+        [string]$ResourceUri,
+
+        [Parameter(Mandatory=$false)]
+        [string]$ResourceAppend
+    )
+
+    Begin{
+        $GraphObject = @()
+    }
+    Process{
+
+        #$hashtable = @{}
+        Foreach($Item in $graphData)
+        {
+            $hashtable = @{}
+            #foreach( $property in $Item.psobject.properties.name )
+            foreach( $property in $Item.GetEnumerator() )
+            {
+                #$hashtable[$property] = $Item.$property
+                $hashtable[$property.Name] = $property.Value
+            }
+            If($ResourceUri){
+                $ItemURI = ($ResourceUri + '/' + $item.id + "/" + $ResourceAppend).Replace('//','/').Trim('/')
+                $hashtable['uri'] = $ItemURI
+            }
+            #$hashtable['type'] = (Split-Path $Element.'@odata.context' -Leaf).replace('$metadata#','')
+            $Object = New-Object PSObject -Property $hashtable            
+            $GraphObject += $Object
+        }
+            
+    }
+    End{
+        return $GraphObject
+    }
+}
