@@ -224,18 +224,24 @@ Function ConvertFrom-GraphHashtable{
         {
             $hashtable = @{}
             #foreach( $property in $Item.psobject.properties.name )
-            foreach( $property in $Item.GetEnumerator() )
-            {
-                #$hashtable[$property] = $Item.$property
-                $hashtable[$property.Name] = $property.Value
+            
+            Try{
+                foreach( $property in $Item.GetEnumerator() )
+                {
+                    #$hashtable[$property] = $Item.$property
+                    $hashtable[$property.Name] = $property.Value
+                }
+                If($ResourceUri){
+                    $ItemURI = ($ResourceUri + '/' + $item.id + "/" + $ResourceAppend).Replace('//','/').Trim('/')
+                    $hashtable['uri'] = $ItemURI
+                }
+                #$hashtable['type'] = (Split-Path $Element.'@odata.context' -Leaf).replace('$metadata#','')
+                $Object = New-Object PSObject -Property $hashtable
+                $GraphObject += $Object
             }
-            If($ResourceUri){
-                $ItemURI = ($ResourceUri + '/' + $item.id + "/" + $ResourceAppend).Replace('//','/').Trim('/')
-                $hashtable['uri'] = $ItemURI
+            Catch{
+                $GraphObject += $Item 
             }
-            #$hashtable['type'] = (Split-Path $Element.'@odata.context' -Leaf).replace('$metadata#','')
-            $Object = New-Object PSObject -Property $hashtable
-            $GraphObject += $Object
         }
 
     }
