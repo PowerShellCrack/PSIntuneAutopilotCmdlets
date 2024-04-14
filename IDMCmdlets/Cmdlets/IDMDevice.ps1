@@ -66,7 +66,7 @@ Function Get-IDMDevice{
         [hashtable]$Passthru
     )
 
-    # Defining Variables
+    # Defining graph variables
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/managedDevices"
 
@@ -116,7 +116,7 @@ Function Get-IDMDevice{
             $filterQuery += "(" + ($OrQuery -join ' or ') + ")"
         }
         If($filterQuery.count -ge 2 -and $AndQuery.count -ge 1){
-            $filterQuery += ' and ' 
+            $filterQuery += ' and '
         }
         If($AndQuery.count -ge 1){
             $filterQuery += "(" + ($AndQuery -join ' and ') + ")"
@@ -143,7 +143,7 @@ Function Get-IDMDevice{
     if ($graphData.'@odata.nextLink') {
 
         try {
-            
+
             #loop through the pages of results until there is no nextLink property
             do {
 
@@ -153,16 +153,16 @@ Function Get-IDMDevice{
             } until (
                 !$graphData.'@odata.nextLink'
             )
-            
+
         }
         catch {
             New-Exception -Exception $_.Exception
-        }  
+        }
     }
     #return the array of results
     $graphData = $allPages
-    
-    
+
+
     If($Expand)
     {
         $Devices = @()
@@ -292,7 +292,7 @@ Function Get-IDMDevices{
         [switch]$Passthru
     )
 
-    # Defining Variables
+    # Defining graph variables
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/managedDevices"
 
@@ -308,7 +308,7 @@ Function Get-IDMDevices{
 
     $OrQuery = @()
     $AndQuery = @()
-    
+
     If($All){
         #include all queries by leaving filter empty
     }
@@ -342,7 +342,7 @@ Function Get-IDMDevices{
             $filterQuery += "(" + ($OrQuery -join ' or ') + ")"
         }
         If($filterQuery.count -ge 2 -and $AndQuery.count -ge 1){
-            $filterQuery += ' and ' 
+            $filterQuery += ' and '
         }
         If($AndQuery.count -ge 1){
             $filterQuery += "(" + ($AndQuery -join ' and ') + ")"
@@ -470,7 +470,7 @@ Function Get-IDMAzureDevices{
         [switch]$Passthru
     )
     Begin{
-        # Defining Variables
+        # Defining graph variables
         $graphApiVersion = "beta"
         $Resource = "devices"
         $RequestParams = @{}
@@ -555,7 +555,7 @@ Function Get-IDMDevicePendingActions{
         [switch]$AllActions
     )
     Begin{
-        # Defining Variables
+        # Defining graph variables
         $graphApiVersion = "beta"
         $Resource = "deviceManagement/managedDevices"
     }
@@ -599,7 +599,7 @@ Function Get-IDMDeviceCategory{
     [cmdletbinding()]
     param([switch]$Passthru)
 
-    # Defining Variables
+    # Defining graph variables
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/deviceCategories"
 
@@ -612,13 +612,13 @@ Function Get-IDMDeviceCategory{
     catch {
         Write-ErrorResponse($_)
     }
-    
+
     If($Passthru){
         return $response.value
     }else {
         return (ConvertFrom-GraphHashtable -GraphData $Response.Value -ResourceUri $uri)
     }
-    
+
 }
 
 
@@ -647,7 +647,7 @@ Function Set-IDMDeviceCategory{
         $Category
     )
 
-    # Defining Variables
+    # Defining graph variables
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/managedDevices"
 
@@ -718,7 +718,7 @@ Function Invoke-IDMDeviceAction{
         $RequestParams = @{}
     }
     Process{
-        
+
         switch($Action){
 
             'RemoteLock'
@@ -1058,7 +1058,7 @@ Function Get-IDMStaleDevices{
         [Int]$cutoffDays,
         [switch]$Passthru
     )
-    # Defining Variables
+    # Defining graph variables
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/managedDevices"
 
@@ -1103,7 +1103,7 @@ Function Get-IDMStaleAzureDevices{
         [Int]$cutoffDays,
         [switch]$Passthru
     )
-    # Defining Variables
+    # Defining graph variables
     $graphApiVersion = "beta"
     $Resource = "devices"
 

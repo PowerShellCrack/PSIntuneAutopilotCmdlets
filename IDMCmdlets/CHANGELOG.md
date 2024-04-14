@@ -1,5 +1,11 @@
 # Change log for IDMCmdlets
 
+## 1.0.2.3 April 14, 2024
+
+- Added Intune RBAC functions
+- Added Azure Group functions
+- Cleaned up inconsistencies
+
 ## 1.0.2.2 April 12, 2024
 
 - Added all switch to get devices. removed IncludeEAS as All is more understandable

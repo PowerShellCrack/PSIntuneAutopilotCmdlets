@@ -1,7 +1,7 @@
 Function New-IDMGraphApp{
     <#
     .SYNOPSIS
-    Creates a new Azure AD app registration with the necessary permissions for Intune device management.
+    Creates a new Azure Entra app registration with the necessary permissions for Intune device management.
 
     .PARAMETER CloudEnvironment
     Specifies the cloud environment to use. Valid values are Public, USGov, USGovDoD.
@@ -12,7 +12,7 @@ Function New-IDMGraphApp{
     .EXAMPLE
     New-IDMGraphApp -CloudEnvironment Public -appNamePrefix "IntuneDeviceManagerApp"
     Creates a new app registration in the public cloud with the name "IntuneDeviceManagerApp-<random identifier>"
-    
+
     .LINK
     https://learn.microsoft.com/en-us/powershell/microsoftgraph/app-only?view=graph-powershell-1.0&tabs=azure-portal
     https://learn.microsoft.com/en-us/troubleshoot/azure/active-directory/verify-first-party-apps-sign-in
@@ -80,7 +80,7 @@ Function New-IDMGraphApp{
 
     #Create the client secret
     $PasswordCredentials = @{
-        StartDateTime = $startDate 
+        StartDateTime = $startDate
         EndDateTime = $endDate
         DisplayName = ($appNamePrefix + "_" + ($startDate).ToUniversalTime().ToString("yyyyMMdd"))
     }
@@ -111,8 +111,8 @@ Function New-IDMGraphApp{
 
     $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
 
-    Write-Host ("App registration created!") -ForegroundColor Cyan 
-    
+    Write-Host ("App registration created!") -ForegroundColor Cyan
+
     #build object to return
     $appdetails = "" | Select-Object AppId,AppSecret,TenantID,CloudEnvironment
     $appdetails.TenantID = $TenantID
@@ -171,8 +171,8 @@ Function Update-IDMGraphApp{
     $TenantID = Get-MgContext | Select-Object -ExpandProperty TenantId
     #Set variables for the app
     $AppServicePrincipal = Get-MgServicePrincipal -Filter "AppId eq '$AppId'"
-    
-    If($AppServicePrincipal){       
+
+    If($AppServicePrincipal){
 
         $GraphResourceId = "00000003-0000-0000-c000-000000000000" #Microsoft Graph
         $GraphServicePrincipal = Get-MgServicePrincipal -Filter "AppId eq '$GraphResourceId'"
@@ -184,7 +184,7 @@ Function Update-IDMGraphApp{
                 If($AppServicePrincipal.AppRoles | Where-Object {$_.value -eq $Permission})
                 {
                     Write-Host ("Permission already granted: {0}" -f $Permission) -ForegroundColor Yellow
-                
+
                 }Else{
                     $PermissionScope = $GraphServicePrincipal.AppRoles | Where-Object {$_.value -in $Permission}
 
@@ -210,7 +210,7 @@ Function Update-IDMGraphApp{
             $endDate = $startDate.AddYears(1)
 
             $PasswordCredentials = @{
-                StartDateTime = $startDate 
+                StartDateTime = $startDate
                 EndDateTime = $endDate
                 DisplayName = ($AppServicePrincipal.DisplayName.Split('-')[0] + "_" + ($startDate).ToUniversalTime().ToString("yyyyMMdd"))
             }
@@ -218,7 +218,7 @@ Function Update-IDMGraphApp{
             $ClientSecret = Add-MgApplicationPassword -ApplicationId $AppEnterpriseApplication.Id -PasswordCredential $PasswordCredentials
             Write-Host ("done: {0}..." -f $ClientSecret.SecretText.Substring(0,7)) -ForegroundColor Green
         }
-        
+
         $null = Disconnect-MgGraph -ErrorAction SilentlyContinue
 
         #build object to return
@@ -235,11 +235,11 @@ Function Update-IDMGraphApp{
         }Else{
             return $appdetails
         }
-        Write-Host ("App registration updated!") -ForegroundColor Cyan 
+        Write-Host ("App registration updated!") -ForegroundColor Cyan
 
     }else {
         Write-Error ("Appid not found [{0}]. Run New-IDMGraphApp or specifiy a different AppId" -f $AppId)
-    }    
+    }
 }
 
 Function Get-IDMGraphAppAuthToken {
@@ -249,17 +249,20 @@ Function Get-IDMGraphAppAuthToken {
 
     .DESCRIPTION
     The Connect-IDMGraphApp cmdlet is a wrapper cmdlet that helps authenticate to the Graph API using the Microsoft.Graph.Intune module.
-    It leverages an Azure AD app ID and app secret for authentication. See https://oofhours.com/2019/11/29/app-based-authentication-with-intune/ for more information.
+    It leverages an Azure Entra app ID and app secret for authentication. See https://oofhours.com/2019/11/29/app-based-authentication-with-intune/ for more information.
     https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#create-a-new-application-secret
 
     .PARAMETER Tenant
     Specifies the tenant (e.g. contoso.onmicrosoft.com) to which to authenticate.
 
     .PARAMETER AppId
-    Specifies the Azure AD app ID (GUID) for the application that will be used to authenticate.
+    Specifies the Azure Entra app ID (GUID) for the application that will be used to authenticate.
 
     .PARAMETER AppSecret
-    Specifies the Azure AD app secret corresponding to the app ID that will be used to authenticate.
+    Specifies the Azure Entra app secret corresponding to the app ID that will be used to authenticate.
+
+    .PARAMETER AESKey
+    Specifies the AES key used to encrypt the app secret. This is required if the app secret is encrypted.
 
     .EXAMPLE
     $app = New-IDMGraphApp -CloudEnvironment Public -appNamePrefix "IntuneDeviceManagerApp" -AsHashTable
@@ -283,7 +286,10 @@ Function Get-IDMGraphAppAuthToken {
 
         [Parameter(Mandatory=$true)]
         [Alias('ClientSecret')]
-        [securestring]$AppSecret,
+        $AppSecret,
+
+        [Parameter(Mandatory = $false)]
+        [string[]]$AESKey,
 
         [Parameter(Mandatory = $false)]
         [switch]$ReturnToken
@@ -296,13 +302,25 @@ Function Get-IDMGraphAppAuthToken {
         default {$AzureEndpoint = 'https://login.microsoftonline.com';$graphEndpoint = 'https://graph.microsoft.com'}
     }
 
+    If($AESKey){
+        $AppSecret = $AppSecret | ConvertTo-SecureString -Key $AESKey
+        $SecureStringParams = @{
+            Key = $AESKey
+            AsPlainText = $true
+        }
+    }Else{
+        $SecureStringParams = @{
+            AsPlainText = $true
+        }
+    }
+
     try {
-        
+
         $Body = @{
             Grant_Type    = "client_credentials"
             Scope         = "$graphEndpoint/.default"
             client_Id     = $AppId
-            Client_Secret = ($AppSecret | ConvertFrom-SecureString -AsPlainText)
+            Client_Secret = ($AppSecret | ConvertFrom-SecureString @SecureStringParams)
         }
         $ConnectGraph = Invoke-RestMethod -Uri "$AzureEndpoint/$TenantID/oauth2/v2.0/token" -Method POST -Body $Body -ErrorAction Stop
         $token = $ConnectGraph.access_token
@@ -334,34 +352,34 @@ function Connect-IDMGraphApp{
     <#
     .SYNOPSIS
         This function is used to authenticate with the Graph API REST interface
- 
+
     .DESCRIPTION
         The function authenticate with the Graph API Interface with the tenant name
- 
+
     .PARAMETER User
         Must be in UPN format (email). This is the user principal name (eg user@domain.com)
- 
+
     .EXAMPLE
         Get-IDMGraphAuthToken
         Authenticates you with the Graph API interface
-    
+
     .EXAMPLE
-        Get-IDMGraphAuthToken -cloudEnvironment USGov -AppAuthToken $Token 
+        Get-IDMGraphAuthToken -cloudEnvironment USGov -AppAuthToken $Token
         Authenticates you with the Graph API interface using the app token
 
     .NOTES
     Requires: Microsoft.Graph.Authentication module
-    
+
     .LINK
     Reference: https://learn.microsoft.com/en-us/graph/deployments
- 
+
     #>
     [cmdletbinding()]
     param(
         [Parameter(Mandatory = $false)]
         [ValidateSet('Global','USGov','USGovDoD')]
         [string] $CloudEnvironment = 'Global',
-        
+
         $AppAuthToken
     )
 
@@ -373,8 +391,8 @@ function Connect-IDMGraphApp{
         }Else{
             $SecureToken = ConvertTo-SecureString $AppAuthToken -AsPlainText -Force
         }
-        
-        Try{    
+
+        Try{
             Connect-MgGraph -Environment $CloudEnvironment -AccessToken $SecureToken -NoWelcome
         }
         Catch{
@@ -393,7 +411,7 @@ function Connect-IDMGraphApp{
     }
 
     $context = Get-MgContext
-    
+
     #Set global variable for graph endpoint
     switch ($context.Environment) {
         'Global' {$Global:GraphEndpoint = 'https://graph.microsoft.com'}
@@ -450,7 +468,7 @@ function Update-IDMGraphAppAuthToken{
         [String[]]$Scope = @("Group.ReadWrite.All","User.ReadWrite.All")
     )
 
-    # Defining Variables
+    # Defining graph variables
     $oAuthApiVersion = "v2.0"
 
     switch ($CloudEnvironment) {
@@ -573,14 +591,14 @@ Function Invoke-IDMGraphBatchRequests{
             $i++
             $batch += $URLRequests
         }
-        
+
     }
     End{
         $BatchProperties.requests = $batch
         #convert body to json
         $BatchBody = $BatchProperties | ConvertTo-Json
         Write-Verbose $BatchBody
-        
+
         $RestParams = @{
             Uri = "$Global:GraphEndpoint/$graphApiVersion/`$batch"
             Method = 'Post'
@@ -601,7 +619,7 @@ Function Invoke-IDMGraphBatchRequests{
         catch {
             Write-ErrorResponse($_)
         }
-        
+
         If($Passthru){
             #return raw results (including uri, value, next link)
             Return $Responses
@@ -613,16 +631,16 @@ Function Invoke-IDMGraphBatchRequests{
             #TEST = ($bodyValue = $Responses.body[0]).Value
             foreach($bodyValue in $Responses.body)
             {
-                
+
                     $BatchResponses += ConvertFrom-GraphHashtable -GraphData $bodyValue.Value `
                                             -ResourceUri ($bodyValue.'@odata.context'.replace('$metadata#',''))
-                
+
                 #$i++
             }
-            
+
             return $BatchResponses
         }
-       
+
         <#
         If($Passthru){
             return $response.responses.body
@@ -844,7 +862,7 @@ Function Invoke-IDMGraphRequests{
         }
     }
     End{
-        
+
         $results = @();
         #TEST $job = $jobs
         foreach ($Job in $Jobs) {
@@ -852,7 +870,7 @@ Function Invoke-IDMGraphRequests{
             #add uri to object list if passthru used
             $Results += $Result
         }
-        
+
         If($Passthru){
             #return raw results (including uri, value, next link)
             Return $Results
@@ -886,7 +904,7 @@ Function Invoke-IDMGraphRequests{
                 $i++
             }
             #>
-            
+
             return $Responses
         }
     }

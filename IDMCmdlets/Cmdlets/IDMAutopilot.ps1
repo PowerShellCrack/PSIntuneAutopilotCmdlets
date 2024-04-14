@@ -26,7 +26,7 @@ Function Get-IDMAutopilotProfile{
         [switch]$Passthru
     )
 
-    # Defining Variables
+    # Defining graph variables
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
 
@@ -67,7 +67,7 @@ Function Get-IDMAutopilotProfile{
         if ($graphData.'@odata.nextLink') {
 
             try {
-                
+
                 #loop through the pages of results until there is no nextLink property
                 do {
 
@@ -77,11 +77,11 @@ Function Get-IDMAutopilotProfile{
                 } until (
                     !$graphData.'@odata.nextLink'
                 )
-                
+
             }
             catch {
                 Write-ErrorResponse($_)
-            }  
+            }
         }
     }
 
@@ -91,7 +91,7 @@ Function Get-IDMAutopilotProfile{
     else{
         return (ConvertFrom-GraphHashtable $allPages -ResourceUri $uri)
     }
-    
+
 }
 
 
@@ -135,7 +135,7 @@ Function Get-IDMAutopilotDevice{
         [switch]$Passthru
     )
     Begin{
-        # Defining Variables
+        # Defining graph variables
         $graphApiVersion = "beta"
         $Resource = "deviceManagement/windowsAutopilotDeviceIdentities"
 
@@ -143,7 +143,7 @@ Function Get-IDMAutopilotDevice{
         $devices = @()
     }
     Process {
-        
+
         if ($id -and $Expand) {
             $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$($id)?`$expand=deploymentProfile,intendedDeploymentProfile"
         }
@@ -176,12 +176,12 @@ Function Get-IDMAutopilotDevice{
         else {
             #add the first page of results to the array
             $allPages += $graphData.value
-    
+
             #if there is a nextLink property, then there are more pages of results
             if ($graphData.'@odata.nextLink') {
 
                 try {
-                    
+
                     #loop through the pages of results until there is no nextLink property
                     do {
 
@@ -191,14 +191,14 @@ Function Get-IDMAutopilotDevice{
                     } until (
                         !$graphData.'@odata.nextLink'
                     )
-                    
+
                 }
                 catch {
                     Write-ErrorResponse($_)
-                }  
+                }
             }
         }
-  
+
     }End{
         if ( ($Null -eq $id) -and $Expand) {
             $devices += $allPages.id | Get-IDMAutopilotDevice -Expand
@@ -257,7 +257,7 @@ Function Set-IDMAutopilotDeviceTag{
         $GroupTag
     )
     Begin{
-         # Defining Variables
+         # Defining graph variables
          $graphApiVersion = "beta"
          $Resource = "deviceManagement/windowsAutopilotDeviceIdentities"
     }
@@ -286,7 +286,7 @@ Function Set-IDMAutopilotDeviceTag{
 
 
 Function Add-IDMAutopilotProfileToDevice{
-    
+
     <#
     .SYNOPSIS
     Assigns a Windows Autopilot profile to a device.
@@ -315,7 +315,7 @@ Function Add-IDMAutopilotProfileToDevice{
         $DeviceID
     )
     Begin{
-        # Defining Variables
+        # Defining graph variables
         $graphApiVersion = "beta"
         $Resource = "deviceManagement/windowsAutopilotDeploymentProfiles"
     }
@@ -332,5 +332,5 @@ Function Add-IDMAutopilotProfileToDevice{
             Write-ErrorResponse($_)
         }
     }
-    
+
 }

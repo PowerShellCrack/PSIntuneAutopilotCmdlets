@@ -20,8 +20,42 @@ function Write-ErrorResponse($ErrorResponse) {
     }
 }
 
+Function Test-JSON{
+    <#
+    .SYNOPSIS
+    This function is used to test if the JSON passed to a REST Post request is valid
+
+    .DESCRIPTION
+    The function tests if the JSON passed to the REST Post is valid
+
+    .EXAMPLE
+    Test-JSON -JSON $JSON
+    Test if the JSON is valid before calling the Graph REST interface
+    #>
+
+    Param (
+        [Parameter(Mandatory=$True,ValueFromPipeline=$true,Position=0)]
+        $JSON
+    )
+
+    try {
+        $TestJSON = ConvertFrom-Json $JSON -ErrorAction Stop
+        $validJson = $true
+
+    }
+    catch {
+        $validJson = $false
+        $_.Exception
+    }
+
+    Return $validJson
+
+}
+
+
 
 Function Set-IDMResourceFriendlyName{
+
 
     Param(
         $Name,
@@ -200,10 +234,10 @@ Function ConvertFrom-GraphHashtable{
                 $hashtable['uri'] = $ItemURI
             }
             #$hashtable['type'] = (Split-Path $Element.'@odata.context' -Leaf).replace('$metadata#','')
-            $Object = New-Object PSObject -Property $hashtable            
+            $Object = New-Object PSObject -Property $hashtable
             $GraphObject += $Object
         }
-            
+
     }
     End{
         return $GraphObject

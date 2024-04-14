@@ -6,10 +6,10 @@ Function Get-IDMAzureUser{
 
     <#
     .SYNOPSIS
-        This function is used to get AAD Users from the Graph API REST interface
+        This function is used to get Azure Entra Users from the Graph API REST interface
 
     .DESCRIPTION
-        The function connects to the Graph API Interface and gets any users registered with AAD
+        The function connects to the Graph API Interface and gets any users registered with Azure Entra
 
     .PARAMETER Id
         Must be in GUID format. This is the users GUID
@@ -22,11 +22,11 @@ Function Get-IDMAzureUser{
 
     .EXAMPLE
         Get-IDMAzureUser -Id '12981fe3-6049-4039-853f-e20c8d327116'
-        Returns specific user by GUID registered with Azure AD
+        Returns specific user by GUID registered with Azure Entra
 
     .EXAMPLE
         Get-IDMAzureUser -userPrincipleName user@domain.com
-        Returns specific user by UserPrincipalName registered with Azure AD
+        Returns specific user by UserPrincipalName registered with Azure Entra
 
     .LINK
     https://docs.microsoft.com/en-us/graph/api/user-get?view=graph-rest-1.0&tabs=http
@@ -50,7 +50,7 @@ Function Get-IDMAzureUser{
         [switch]$Passthru
     )
     Begin{
-        # Defining Variables
+        # Defining graph variables
         $graphApiVersion = "beta"
         $Resource = "users"
     }
@@ -152,7 +152,7 @@ Function Get-IDMAzureUsers{
         [switch]$Passthru
     )
     Begin{
-        # Defining Variables
+        # Defining graph variables
         $graphApiVersion = "beta"
         $Resource = "users"
 
@@ -230,11 +230,11 @@ Function Get-IDMDeviceAssignedUser{
     (
         [Parameter(Mandatory=$True,ValueFromPipelineByPropertyName=$true,ValueFromPipeline=$true)]
         $DeviceID,
-        
+
         [switch]$Passthru
     )
     Begin{
-        # Defining Variables
+        # Defining graph variables
         $graphApiVersion = "beta"
     }
     Process{
