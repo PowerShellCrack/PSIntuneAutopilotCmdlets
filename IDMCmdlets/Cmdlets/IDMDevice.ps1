@@ -1277,6 +1277,9 @@ Function Get-IDMIntuneAssignments{
     $platform = $syncHash.Data.SelectedDevice.OperatingSystem
 
     Get-IDMIntuneAssignments -TargetSet $targetSet -Platform $platform -IncludePolicySetInherits
+
+    .EXAMPLE
+    $targetSet = @{devices=$syncHash.AssignmentWindow.DeviceData.azureADObjectId;users=$syncHash.AssignmentWindow.UserData.id}
     #>
     [cmdletbinding()]
     Param(
@@ -1411,7 +1414,9 @@ Function Get-IDMIntuneAssignments{
     #BATCH CALL #2: get Assignments of all resource using batch jobs.
     #Using -Passthru with Invoke-IDMGraphRequests will out graph data including next link and context. Value contains devices. No Passthru will out value only
     #batch jobs can only be ran in series of 20; split collection up and process each group
-    $ResourceAssignments = $PlatformResources | %{ $_.uri + '/' + $_.id + '/assignments'} |
+    
+    #$ResourceAssignments = $PlatformResources | %{ $_.uri + '/' + $_.id + '/assignments'} |
+    $ResourceAssignments = $PlatformResources | %{ $_.uri + '/assignments'} |
                 Split-IDMRequests -GroupOf 20 | ForEach-Object { $_ | Invoke-IDMGraphBatchRequests -Verbose:$VerbosePreference}
     #$ResourceAssignments = $PlatformResources | Invoke-IDMGraphRequests -Verbose:$VerbosePreference
     #$ResourceAssignments.count

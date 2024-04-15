@@ -229,15 +229,14 @@ Function ConvertFrom-GraphHashtable{
             {
                 $hashtable = @{}
 
-                Write-Verbose "Processing Hashtable"
                 foreach( $property in $Item.GetEnumerator() )
                 {
                     #$hashtable[$property] = $Item.$property
                     $hashtable[$property.Name] = $property.Value
                 }
                 If($ResourceUri){
-                    Write-verbose "Adding URI to item..."
                     $ItemURI = ($ResourceUri + '/' + $item.id + "/" + $ResourceAppend).Trim('/')
+                    Write-verbose "Adding Uri to hashtable item: $ItemURI"
                     $hashtable['uri'] = $ItemURI
                 }
                 #$hashtable['type'] = (Split-Path $Element.'@odata.context' -Leaf).replace('$metadata#','')
@@ -245,13 +244,14 @@ Function ConvertFrom-GraphHashtable{
                 $GraphObject += $Object
             }
             Else{
-                Write-Verbose "Processing Object"
                 If($ResourceUri){
+                    $ItemURI = ($ResourceUri + '/' + $item.id + "/" + $ResourceAppend).Trim('/')
                     If($Item.uri){
-                        Write-Verbose "URI Exists, overwriting..."
-                        $Item.uri = ($ResourceUri + '/' + $item.id + "/" + $ResourceAppend).Trim('/')
+                        Write-Verbose "Overwriting Object Uri: $ItemURI"
+                        $Item.uri = $ItemURI
                     }Else{
-                        $Item | Add-Member -MemberType NoteProperty -Name 'uri' -Value ($ResourceUri + '/' + $item.id + "/" + $ResourceAppend).Trim('/')
+                        Write-verbose "Adding Uri to Object: $ItemURI"
+                        $Item | Add-Member -MemberType NoteProperty -Name 'uri' -Value $ItemURI
                     }
                 }
                 $GraphObject += $Item
