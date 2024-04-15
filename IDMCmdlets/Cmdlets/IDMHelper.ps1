@@ -202,6 +202,7 @@ function Split-IDMRequests {
 
 
 Function ConvertFrom-GraphHashtable{
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
         [AllowEmptyString()]
@@ -220,19 +221,22 @@ Function ConvertFrom-GraphHashtable{
     Process{
 
         #$hashtable = @{}
+        #TEST $item = $body.value[0]
+        #TEST $item = $graphData[0]
         Foreach($Item in $graphData)
         {
-            $hashtable = @{}
-            #foreach( $property in $Item.psobject.properties.name )
-            
             If(Test-Hashtable $Item)
             {
+                $hashtable = @{}
+
+                Write-Verbose "Processing Hashtable"
                 foreach( $property in $Item.GetEnumerator() )
                 {
                     #$hashtable[$property] = $Item.$property
                     $hashtable[$property.Name] = $property.Value
                 }
                 If($ResourceUri){
+                    Write-verbose "Adding URI to item..."
                     $ItemURI = ($ResourceUri + '/' + $item.id + "/" + $ResourceAppend).Trim('/')
                     $hashtable['uri'] = $ItemURI
                 }
@@ -241,8 +245,14 @@ Function ConvertFrom-GraphHashtable{
                 $GraphObject += $Object
             }
             Else{
+                Write-Verbose "Processing Object"
                 If($ResourceUri){
-                    $Item | Add-Member -MemberType NoteProperty -Name 'uri' -Value ($ResourceUri + '/' + $item.id + "/" + $ResourceAppend).Trim('/')
+                    If($Item.uri){
+                        Write-Verbose "URI Exists, overwriting..."
+                        $Item.uri = ($ResourceUri + '/' + $item.id + "/" + $ResourceAppend).Trim('/')
+                    }Else{
+                        $Item | Add-Member -MemberType NoteProperty -Name 'uri' -Value ($ResourceUri + '/' + $item.id + "/" + $ResourceAppend).Trim('/')
+                    }
                 }
                 $GraphObject += $Item
 
@@ -254,6 +264,7 @@ Function ConvertFrom-GraphHashtable{
         return $GraphObject
     }
 }
+
 
 #test if object is a hashtable
 function Test-Hashtable{

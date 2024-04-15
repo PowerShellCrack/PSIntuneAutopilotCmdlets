@@ -816,6 +816,7 @@ Function Invoke-IDMGraphBatchRequests{
             Write-ErrorResponse($_)
         }
 
+        
         If($Passthru){
             #return raw results (including uri, value, next link)
             Return $Responses
@@ -825,12 +826,13 @@ Function Invoke-IDMGraphBatchRequests{
             $BatchResponses = @()
             #$i= 0
             #TEST = ($bodyValue = $Responses.body[0]).Value
-            foreach($bodyValue in $Responses.body)
+            foreach($body in $Responses.body)
             {
-
-                    $BatchResponses += ConvertFrom-GraphHashtable -GraphData $bodyValue.Value `
-                                            -ResourceUri ($bodyValue.'@odata.context'.replace('$metadata#',''))
-
+                If($null -ne $body.Value){
+                    $BatchResponses += ConvertFrom-GraphHashtable -GraphData $body.Value `
+                                            -ResourceUri ($body.'@odata.context'.replace('$metadata#',''))
+                }
+                
                 #$i++
             }
 
@@ -839,19 +841,19 @@ Function Invoke-IDMGraphBatchRequests{
 
         <#
         If($Passthru){
-            return $response.responses.body
+            return $Responses
         }
         Else{
             $BatchResponses = @()
             $i=0
-            foreach($Element in $response.responses.body){
+            foreach($Element in $Response.body){
                 $hashtable = @{}
                 Foreach($Item in $Element.value){
                     foreach( $property in $Item.psobject.properties.name )
                     {
                         $hashtable[$property] = $Item.$property
                     }
-                    $hashtable['uri'] = "$Global:GraphEndpoint/$graphApiVersion" + $Item[$i].url
+                    $hashtable['uri'] = "$Global:GraphEndpoint/$graphApiVersion/" + $Item[$i].url + '/' + $Item.id
                     #$hashtable['type'] = (Split-Path $Element.'@odata.context' -Leaf).replace('$metadata#','')
                     $Object = New-Object PSObject -Property $hashtable
                     $BatchResponses += $Object
