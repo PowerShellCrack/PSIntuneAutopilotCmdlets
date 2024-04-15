@@ -225,27 +225,53 @@ Function ConvertFrom-GraphHashtable{
             $hashtable = @{}
             #foreach( $property in $Item.psobject.properties.name )
             
-            Try{
+            If(Test-Hashtable $Item)
+            {
                 foreach( $property in $Item.GetEnumerator() )
                 {
                     #$hashtable[$property] = $Item.$property
                     $hashtable[$property.Name] = $property.Value
                 }
                 If($ResourceUri){
-                    $ItemURI = ($ResourceUri + '/' + $item.id + "/" + $ResourceAppend).Replace('//','/').Trim('/')
+                    $ItemURI = ($ResourceUri + '/' + $item.id + "/" + $ResourceAppend).Trim('/')
                     $hashtable['uri'] = $ItemURI
                 }
                 #$hashtable['type'] = (Split-Path $Element.'@odata.context' -Leaf).replace('$metadata#','')
                 $Object = New-Object PSObject -Property $hashtable
                 $GraphObject += $Object
             }
-            Catch{
-                $GraphObject += $Item 
+            Else{
+                If($ResourceUri){
+                    $Item | Add-Member -MemberType NoteProperty -Name 'uri' -Value ($ResourceUri + '/' + $item.id + "/" + $ResourceAppend).Trim('/')
+                }
+                $GraphObject += $Item
+
             }
         }
 
     }
     End{
         return $GraphObject
+    }
+}
+
+#test if object is a hashtable
+function Test-Hashtable{
+    param(
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
+        [AllowEmptyString()]
+        $Object
+    )
+
+    Begin{
+        $isHashtable = $false
+    }
+    Process{
+        if($Object -is [hashtable]){
+            $isHashtable = $true
+        }
+    }
+    End{
+        return $isHashtable
     }
 }

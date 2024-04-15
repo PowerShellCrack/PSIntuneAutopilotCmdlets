@@ -1,10 +1,11 @@
 # Change log for IDMCmdlets
 
-## 1.0.2.3 April 14, 2024
+## 1.0.2.5 April 14, 2024
 
 - Added Intune RBAC functions
 - Added Azure Group functions
-- Cleaned up inconsistencies
+- Cleaned up inconsistencies; added SYNOPSIS to functions
+- Fixed Graph conversion to object; check for hashtable, if not use object
 
 ## 1.0.2.2 April 12, 2024
 
