@@ -7,6 +7,7 @@
 - Cleaned up inconsistencies; added SYNOPSIS to functions
 - Fixed Graph conversion to object; check for hashtable, if not use object
 - Fixed Get-IDMIntuneAssignments; removed id from uri; already part of batch response
+- Added additional graph resources to Get-IDMIntuneAssignments
 
 ## 1.0.2.2 April 12, 2024
 

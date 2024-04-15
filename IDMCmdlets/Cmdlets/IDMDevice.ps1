@@ -1328,7 +1328,7 @@ Function Get-IDMIntuneAssignments{
                 )
 
                 $PlatformComponents = @(
-                    #'deviceManagement/advancedThreatProtectionOnboardingStateSummary'
+                    'deviceManagement/groupPolicyConfigurations'
                     'deviceManagement/windowsAutopilotDeploymentProfiles'
                     'deviceManagement/deviceCompliancePolicies'
                     'deviceManagement/deviceComplianceScripts'
@@ -1338,14 +1338,17 @@ Function Get-IDMIntuneAssignments{
                     'deviceManagement/deviceHealthScripts'
                     'deviceManagement/deviceManagementScripts'
                     'deviceManagement/roleScopeTags'
-                    #'deviceManagement/windowsDriverUpdateProfiles'
+                    'deviceManagement/windowsDriverUpdateProfiles'
                     'deviceManagement/windowsQualityUpdateProfiles'
                     'deviceManagement/windowsFeatureUpdateProfiles'
                     'deviceAppManagement/windowsInformationProtectionPolicies'
                     'deviceAppManagement/mdmWindowsInformationProtectionPolicies'
-                    'deviceAppManagement/mobileApps'
                     'deviceAppManagement/policysets'
-                    #'deviceAppManagement/assignmentFilters'
+                    'deviceAppManagement/intents'
+                    'deviceAppManagement/targetedManagedAppConfigurations'
+                    'deviceAppManagement/managedAppPolicies'
+                    'deviceAppManagement/mobileAppConfigurations'
+                    'deviceAppManagement/mobileApps'
                 )
         }
 
