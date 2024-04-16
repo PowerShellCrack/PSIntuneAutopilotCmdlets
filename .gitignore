@@ -1,5 +1,5 @@
 Publish-IDMCmdlets.ps1
 tests.ps1
-secrets*
+secret*
 dtolab*
 dtogov*
