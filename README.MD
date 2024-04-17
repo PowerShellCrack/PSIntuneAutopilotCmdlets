@@ -112,6 +112,10 @@ $app = Update-IDMGraphApp -AppId $app.AppId -NewSecret -TenantID $app.TenantID -
 $app | Export-Clixml .\intuneapp_secret.xml
 ```
 
+## Sample Scripts
+
+There are additional sample scripts in the Sample Folders. This will grow in time. 
+
 # DISCLAIMER
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
