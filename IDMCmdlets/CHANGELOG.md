@@ -1,5 +1,10 @@
 # Change log for IDMCmdlets
 
+## 1.0.2.8 April 17, 2024
+
+- Fixed Intunedevice object output. 
+- Fixed Azuredevice object output. 
+
 ## 1.0.2.7 April 14, 2024
 
 - Added Intune RBAC functions

@@ -177,31 +177,33 @@ Function Get-IDMDevice{
             $AzureDeviceParam += @{Platform = $Platform}
         }
 
-        $IntuneDeviceObject = ConvertFrom-GraphHashtable -GraphData $graphData -ResourceUri "$Global:GraphEndpoint/$graphApiVersion/$Resource"
+        $IntuneDeviceObjects = ConvertFrom-GraphHashtable -GraphData $graphData.value -ResourceUri "$Global:GraphEndpoint/$graphApiVersion/$Resource"
 
         #Call another Azure cmdlet
         #Write-Verbose ($AzureDeviceParam.GetEnumerator() | Format-List | Out-String)
         $AADObjects = Get-IDMAzureDevices @AzureDeviceParam
 
-        #TEST $Item = $IntuneDeviceObject | Where {$_.deviceName -eq 'DTOLAB-WHKV102'}
-        Foreach($IntuneItem in $IntuneDeviceObject)
+        #TEST $IntuneItem = $IntuneDeviceObjects | Where {$_.deviceName -eq 'DTOLAB-WKHV002'}
+        Foreach($IntuneItem in $IntuneDeviceObjects)
         {
             $OutputItem = New-Object PSObject
+            $OutputItem = $IntuneItem
             #first add all properties of Intune device
-            Foreach($p in $Item | Get-Member -MemberType NoteProperty){
-                $OutputItem | Add-Member NoteProperty $p.name -Value $IntuneItem.($p.name)
+            <#
+            Foreach($p in $IntuneItem.psobject.properties.name){
+                $OutputItem | Add-Member NoteProperty $p.name -Value $IntuneItem.($p)
             }
+            #>
+            #TEST $LinkedAzureDevice = $AADObjects | Where displayName -eq 'DTOLAB-WKHV002'
+            If($LinkedAzureDevice = $AADObjects | Where deviceId -eq $IntuneItem.azureADDeviceId){
 
-            #TEST $LinkedIntuneDevice = $AADObjects | Where displayName -eq 'DTOLAB-WHKV102'
-            If($LinkedIntuneDevice = $AADObjects | Where deviceId -eq $IntuneItem.azureADDeviceId){
-
-                Foreach($p in $LinkedIntuneDevice | Get-Member -MemberType NoteProperty){
-                    switch($p.name){
-                        'id' {$OutputItem | Add-Member NoteProperty "azureADObjectId" -Value $LinkedIntuneDevice.($p.name) -Force}
-                        'deviceVersion' {<#For internal use only.#>}
-                        'deviceMetadata' {<#For internal use only.#>}
-                        'alternativeSecurityIds' {<#For internal use only.#>}
-                        default {$OutputItem | Add-Member NoteProperty $p.name -Value $LinkedIntuneDevice.($p.name) -Force}
+                Foreach($p in $LinkedAzureDevice.psobject.properties.name){
+                    switch($p){
+                        'id' {$OutputItem | Add-Member NoteProperty "azureADObjectId" -Value $LinkedAzureDevice.($p) -Force}
+                        'deviceVersion' {}
+                        'deviceMetadata' {}
+                        'alternativeSecurityIds' {}
+                        default {$OutputItem | Add-Member NoteProperty $p -Value $LinkedAzureDevice.($p) -Force}
                     }
                 }
                 # Add the object to our array of output objects
@@ -369,7 +371,7 @@ Function Get-IDMDevices{
         #Populate AAD devices using splat for filter and platform to minimize seach field
         # this is becuse if results are more than gropah will show, the results coudl be skewed.
 
-        #TEST $Item = $Response.Value | Where deviceName -eq 'DTOLAB-WHKV102'
+        #TEST $Item = $Response.Value | Where deviceName -eq 'DTOLAB-WKHV002'
         Foreach($Item in $Response.Value)
         {
             $AzureDevicesUris += "$Global:GraphEndpoint/$graphApiVersion/devices?`$filter=displayName eq '$($Item.deviceName)'"
@@ -377,25 +379,26 @@ Function Get-IDMDevices{
         #invoke a query on all
         $AzureDevices = $AzureDevicesUris | Invoke-IDMGraphBatchRequests -Verbose:$VerbosePreference
 
-        #TEST $Item = $Response.Value | Where deviceName -eq 'DTOLAB-WHKV102'
+        #TEST $Item = $Response.Value | Where deviceName -eq 'DTOLAB-WKHV002'
         Foreach($Item in $Response.Value)
         {
             $OutputItem = New-Object PSObject
             #first add all properties of Intune device
-            Foreach($p in $Item | Get-Member -MemberType NoteProperty){
-                $OutputItem | Add-Member NoteProperty $p.name -Value $Item.($p.name)
+            
+            Foreach($p in $Item.psobject.properties.name){
+                $OutputItem | Add-Member NoteProperty $p -Value $Item.($p)
             }
+            
+            #TEST $LinkedAzureDevice = $AADObjects | Where displayName -eq 'DTOLAB-WKHV002'
+            If($LinkedAzureDevice = $AzureDevices | Where deviceId -eq $Item.azureADDeviceId){
 
-            #TEST $LinkedIntuneDevice = $AADObjects | Where displayName -eq 'DTOLAB-WHKV102'
-            If($LinkedIntuneDevice = $AzureDevices | Where deviceId -eq $Item.azureADDeviceId){
-
-                Foreach($p in $LinkedIntuneDevice | Get-Member -MemberType NoteProperty){
-                    switch($p.name){
-                        'id' {$OutputItem | Add-Member NoteProperty "azureADObjectId" -Value $LinkedIntuneDevice.($p.name) -Force}
-                        'deviceVersion' {<#For internal use only.#>}
-                        'deviceMetadata' {<#For internal use only.#>}
-                        'alternativeSecurityIds' {<#For internal use only.#>}
-                        default {$OutputItem | Add-Member NoteProperty $p.name -Value $LinkedIntuneDevice.($p.name) -Force}
+                Foreach($p in $LinkedAzureDevice.psobject.properties.name){
+                    switch($p){
+                        'id' {$OutputItem | Add-Member NoteProperty "azureADObjectId" -Value $LinkedAzureDevice.($p) -Force}
+                        'deviceVersion' {}
+                        'deviceMetadata' {}
+                        'alternativeSecurityIds' {}
+                        default {$OutputItem | Add-Member NoteProperty $p -Value $LinkedAzureDevice.($p) -Force}
                     }
                 }
                 # Add the object to our array of output objects
@@ -1261,9 +1264,6 @@ Function Get-IDMIntuneAssignments{
 
     .PARAMETER Target
         [Devices | Users]. Specify which assignment to pull.
-
-    .PARAMETER Target
-        [Device | User]. Specify which assignment to pull. Target id is associated
 
     .PARAMETER TargetId
         Must be in guid format. Should be id of device or id of user
