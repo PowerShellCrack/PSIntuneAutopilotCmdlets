@@ -58,13 +58,9 @@ Try{Start-transcript "$ResourcePath\Logs\$LogfileName" -ErrorAction Stop}catch{S
 #==============================================
 
 $modules = @(
-    'Az.Accounts',
     'Microsoft.Graph.Authentication',
     'Microsoft.Graph.Applications',
-    'Microsoft.Graph.Devices',
-    'Microsoft.Graph.Users',
-    'Microsoft.Graph.DeviceManagement',
-    'Microsoft.Graph.Devices.CorporateManagement'
+    'Microsoft.Graph.DeviceManagement'
 )
 
 foreach ($module in $modules){
@@ -93,7 +89,7 @@ Write-Verbose ("{0}" -f ($context | out-string))
 
 #Get all devices
 Write-Host "Getting all devices..." -ForegroundColor White
-$AllDevices = Get-MgDevices -Verbose:$VerbosePreference
+$AllDevices = Get-MgDeviceManagementManagedDevice -All -Verbose:$VerbosePreference
 write-host ("  |--{0} devices found" -f $AllDevices.Count) -ForegroundColor Green
 
 Write-Host '----------------------------------------' -ForegroundColor White
@@ -115,7 +111,7 @@ foreach ($item in $devicList)
     
     Write-Host ("  |--Device is assigned to...") -NoNewline -ForegroundColor White
     #get the current assigned user
-    $CurrentAssignedUser = Get-Mg -DeviceId $DeviceID -Passthru -Verbose:$VerbosePreference
+    $CurrentAssignedUser = Get-MgDeviceManagementManagedDeviceUser -ManagedDeviceId $DeviceID -Verbose:$VerbosePreference
     Write-Verbose ("{0}" -f ($CurrentAssignedUser | out-string))
     #check if the device is assigned to an admin account
     If($CurrentAssignedUser.userPrincipalName -match $AdminRegexCheck)
@@ -125,7 +121,7 @@ foreach ($item in $devicList)
         #if true, change the assigned profile
         Write-Host ("  |--re-assigning to: {0}..." -f $item.AssignedUser) -NoNewline -ForegroundColor White
         Try{
-            Set-IDMDeviceAssignedUser -DeviceId $DeviceID -UPN $item.AssignedUser -Verbose:$VerbosePreference
+            Update-MgDeviceManagementManagedDevice -ManagedDeviceId $DeviceID -Users $item.AssignedUser -Verbose:$VerbosePreference
             Write-Host ("Completed!") -ForegroundColor Green
         }Catch{
             Write-Host ("Failed: {0}" -f $_.Exception.Message) -ForegroundColor Red
@@ -144,7 +140,7 @@ foreach ($item in $devicList)
         #if true, change the assigned profile
         Write-Host ("  |--re-assigning to: {0}..." -f $item.AssignedUser) -NoNewline -ForegroundColor White
         Try{
-            Set-IDMDeviceAssignedUser -DeviceId $DeviceID -UPN $item.AssignedUser -Verbose:$VerbosePreference
+            Update-MgDeviceManagementManagedDevice -ManagedDeviceId $DeviceID -Users $item.AssignedUser -Verbose:$VerbosePreference
             Write-Host ("Completed!") -ForegroundColor Green
         }Catch{
             Write-Host ("Failed: {0}" -f $_.Exception.Message) -ForegroundColor Red

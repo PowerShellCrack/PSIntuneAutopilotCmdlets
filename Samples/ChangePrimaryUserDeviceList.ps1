@@ -60,7 +60,6 @@ $Global:GraphEndpoint = 'https://graph.microsoft.com'
 #==============================================
 
 $modules = @(
-    'Az.Accounts',
     'Microsoft.Graph.Authentication',
     'Microsoft.Graph.Applications',
     'IDMCmdlets'
