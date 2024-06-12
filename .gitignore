@@ -1,5 +1,8 @@
 Publish-IDMCmdlets.ps1
-tests.ps1
+!/Samples/Logs/
+/Samples/Logs/*
+*.log
+*tests.ps1
 secret*
 dtolab*
 dtogov*

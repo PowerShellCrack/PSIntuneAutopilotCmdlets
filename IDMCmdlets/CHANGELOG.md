@@ -1,5 +1,13 @@
 # Change log for IDMCmdlets
 
+## 1.0.3.0 June 12, 2024
+
+- Fixed Assigned user fo device; only grabbed owner
+
+## 1.0.2.9 May 23, 2024
+
+- Added detected apps functions
+
 ## 1.0.2.8 April 17, 2024
 
 - Fixed Intunedevice object output. 

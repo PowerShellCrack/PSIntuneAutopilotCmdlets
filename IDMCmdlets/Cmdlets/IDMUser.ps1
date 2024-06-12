@@ -238,7 +238,7 @@ Function Get-IDMDeviceAssignedUser{
         $graphApiVersion = "beta"
     }
     Process{
-        $Resource = "deviceManagement/manageddevices('$DeviceID')"
+        $Resource = "deviceManagement/manageddevices('$DeviceID')/users"
 
         try {
             $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
@@ -248,20 +248,21 @@ Function Get-IDMDeviceAssignedUser{
         catch {
             Write-ErrorResponse($_)
         }
+        
     }
     End{
         If($Passthru){
-            $userdetails = "" | Select-Object userPrincipalName,UserId,userDisplayName,enrolledDateTime,emailAddress,lastSyncDateTime
-            $userdetails.userPrincipalName = $response.userPrincipalName
-            $userdetails.UserId = $response.userId
-            $userdetails.userDisplayName = $response.userDisplayName
-            $userdetails.enrolledDateTime = $response.enrolledDateTime
-            $userdetails.emailAddress = $response.emailAddress
-            $userdetails.lastSyncDateTime = $response.lastSyncDateTime
+            $userdetails = "" | Select-Object UserPrincipalName,Id,DisplayName,EmailAddress,OnPremisesAccount,AccountEnabled
+            $userdetails.Id = $response.id
+            $userdetails.UserPrincipalName = $response.userPrincipalName
+            $userdetails.DisplayName = $response.displayName
+            $userdetails.EmailAddress = $response.email
+            $userdetails.OnPremisesAccount = $response.onPremisesSyncEnabled
+            $userdetails.AccountEnabled = $response.AccountEnabled
             return $userdetails
         }
         else{
-            return $response.userId
+            return $response.id
         }
     }
 }

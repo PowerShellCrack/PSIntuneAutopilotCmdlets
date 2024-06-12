@@ -1,51 +1,109 @@
+<#
+.SYNOPSIS
+    This script will change the primary user of a list of devices in Azure AD.
+.DESCRIPTION
+    This script will change the primary user of a list of devices in Azure AD. The script will check if the device is assigned to an admin account. If the device is assigned to an admin account, the script will re-assign the device to the user specified in the list. If the device is not assigned to an admin account, the script will only re-assign the device if the current assigned user is different from the user specified in the list. The script will log all changes to a log file in the Logs directory.
+.PARAMETER ListFile
+    The name of the CSV file containing the list of devices to change. The default value is 'devicelist.example.csv'.
+.PARAMETER AssignNonAdminUsers
+    Set this switch to re-assign devices that are not assigned to an admin account. If this switch is not set, the script will only re-assign devices that are assigned to an admin account. The default value is $false.
+.PARAMETER AdminRegexCheck
+    The regex pattern to check for admin accounts. The default value is '^adm-'.
+.EXAMPLE
+    ChangePrimaryUserDeviceList.ps1 -ListFile devicelist.csv -AssignNonAdminUsers
+    This example will change the primary user of the devices in the 'devicelist.csv' file. The script will re-assign devices that are not assigned to an admin account.
+.EXAMPLE
+    ChangePrimaryUserDeviceList.ps1 -ListFile devicelist.csv
+    This example will change the primary user of the devices in the 'devicelist.csv' file. The script will only re-assign devices that are assigned to an admin account.
+#>
 #import device
+[CmdletBinding()]
+Param(
+    [Parameter(Mandatory = $false)]
+    [ArgumentCompleter( {
+        param ( $commandName,
+                $parameterName,
+                $wordToComplete,
+                $commandAst,
+                $fakeBoundParameters )
+
+
+        $CsvFiles = Get-Childitem $PSScriptRoot -Filter '*.csv' | Select -ExpandProperty Name
+
+        $CsvFiles | Where-Object {
+            $_ -like "$wordToComplete*"
+        }
+
+    } )]
+    [Alias("config")]
+    [string]$ListFile = "devicelist.example.csv",
+    [string]$AdminRegexCheck = '^adm-', #regex to check for admin accounts,
+    [switch]$AssignNonAdminUsers #set to true to reassign non-admin users. Otherwise assigned users in list are ignored unless there is an admin account assigne to device
+)
+
+#set the error action preference
+#$ErrorActionPreference = "Stop"
+
 [string]$ResourcePath = ($PWD.ProviderPath, $PSScriptRoot)[[bool]$PSScriptRoot]
-$devicList = Import-Csv "$ResourcePath\tests\devicelist.sample.csv"
+
+$devicList = Import-Csv "$ResourcePath\$ListFile"
 #$devicList = Import-Csv "$ResourcePath\devicelist.csv"
 
-<#
-#set the admin check in regex
-^ = starts with
-adm- = the prefix for admin accounts
-#>
-$admincheck = '^adm-'
+$LogfileName = "ChangePrimaryUserDeviceList-$(Get-Date -Format 'yyyy-MM-dd_Thh-mm-ss-tt').log"
+New-Item "$ResourcePath\Logs" -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
+Try{Start-transcript "$ResourcePath\Logs\$LogfileName" -ErrorAction Stop}catch{Start-Transcript "$ResourcePath\$LogfileName"}
 
-<# TESTS AGAINST REGEX
-'adm-frankjones@dtolab.ltd' -match $admincheck
-'adam.tool@dtolab.ltd' -match $admincheck
-'admintools@dtolab.ltd' -match $admincheck
-#>
-
-#Set to true to reassign non-admin users. 
-#$Otherwise assigned users in list are ignored unless there is an admin account assigne to device
-$AssignNonAdminUsers = $false
+#set the graph endpoint
+$Global:GraphEndpoint = 'https://graph.microsoft.com'
 
 #IMPORT MODULES
 #==============================================
 
-Install-Module Az.Accounts
-Install-Module Microsoft.Graph.Authentication
-Install-Module Microsoft.Graph.Applications
-Install-Module IDMCmdlets
+$modules = @(
+    'Az.Accounts',
+    'Microsoft.Graph.Authentication',
+    'Microsoft.Graph.Applications',
+    'IDMCmdlets'
+)
 
+foreach ($module in $modules){
+    Write-Host ("Checking for installed module: {0}..." -f $module) -ForegroundColor White
+    If((Find-Module $module).Version -in (Get-InstalledModule $module -AllVersions).version)
+    {
+        Write-Host ("  |--Version [{0}] installed" -f (Get-InstalledModule $module -AllVersions).version) -ForegroundColor Green
+    }
+    Else{
+        Write-Host ("  |--Updating, please wait..." )-ForegroundColor Yellow -NoNewline
+        Install-Module -Name $module -AllowClobber -Force
+        Write-Host "Done" -ForegroundColor Green
+    }
+}
 #MAIN
 #==============================================
-#set the graph endpoint
-$Global:GraphEndpoint = 'https://graph.microsoft.com'
 
+
+Write-Host '----------------------------------------' -ForegroundColor White
 #connect to the graph
-Connect-MgGraph
+Write-Host "Connecting to Microsoft Graph..." -ForegroundColor White -NoNewline
+Connect-MgGraph -NoWelcome
+$context = Get-MgContext
+write-host ("Connected as: {0}" -f $context.Account) -ForegroundColor Green
+Write-Verbose ("{0}" -f ($context | out-string))
 
-$AllDevices = Get-IDMDevices
+#Get all devices
+Write-Host "Getting all devices..." -ForegroundColor White
+$AllDevices = Get-IDMDevices -Verbose:$VerbosePreference
+write-host ("  |--{0} devices found" -f $AllDevices.Count) -ForegroundColor Green
 
+Write-Host '----------------------------------------' -ForegroundColor White
 #change assigned profile for eahc device in list
-#TEST $Device = $devicList[0]
-foreach ($Device in $devicList)
+#TEST $item = $devicList[0]
+foreach ($item in $devicList)
 {
-    Write-Host ("Checking device: {0}..." -f $Device.DeviceName) -NoNewline -ForegroundColor White
+    Write-Host ("Checking device: {0}..." -f $item.DeviceName) -NoNewline -ForegroundColor White
     #must get the device id from the display name
-    $DeviceID = $AllDevices | Where-Object { $_.deviceName -eq $Device.DeviceName } | Select-Object -ExpandProperty Id
-
+    $DeviceID = $AllDevices | Where-Object { $_.deviceName -eq $item.DeviceName } | Select-Object -ExpandProperty Id
+    Write-Verbose ("{0}" -f ($AllDevices | Where-Object { $_.deviceName -eq $item.DeviceName } | out-string))
     If($null -eq $DeviceID)
     {
         Write-Host "Device Id not found" -ForegroundColor Red
@@ -56,36 +114,36 @@ foreach ($Device in $devicList)
     
     Write-Host ("  |--Device is assigned to...") -NoNewline -ForegroundColor White
     #get the current assigned user
-    $CurrentUser = Get-IDMDeviceAssignedUser -DeviceId $DeviceID -Passthru
-    
+    $CurrentAssignedUser = Get-IDMDeviceAssignedUser -DeviceId $DeviceID -Passthru -Verbose:$VerbosePreference
+    Write-Verbose ("{0}" -f ($CurrentAssignedUser | out-string))
     #check if the device is assigned to an admin account
-    If($CurrentUser.userPrincipalName -match $admincheck)
+    If($CurrentAssignedUser.userPrincipalName -match $AdminRegexCheck)
     {
-        Write-Host ("an admin account: {0}" -f $CurrentUser.userPrincipalName) -ForegroundColor Yellow
+        Write-Host ("an admin upn was found: {0}" -f $CurrentAssignedUser.userPrincipalName) -ForegroundColor Yellow
         
         #if true, change the assigned profile
-        Write-Host ("  |--re-assigning to: {0}..." -f $Device.AssignedUser) -NoNewline -ForegroundColor White
+        Write-Host ("  |--re-assigning to: {0}..." -f $item.AssignedUser) -NoNewline -ForegroundColor White
         Try{
-            Set-IDMDeviceAssignedUser -DeviceId $DeviceID -UPN $Device.AssignedUser
+            Set-IDMDeviceAssignedUser -DeviceId $DeviceID -UPN $item.AssignedUser -Verbose:$VerbosePreference
             Write-Host ("Completed!") -ForegroundColor Green
         }Catch{
             Write-Host ("Failed: {0}" -f $_.Exception.Message) -ForegroundColor Red
             Continue #skip to next device
         }
         
-    }ElseIf($CurrentUser.userPrincipalName -eq $Device.AssignedUser)
+    }ElseIf($CurrentAssignedUser.userPrincipalName -eq $item.AssignedUser)
     {
-        Write-Host ("the correct upn: {0}" -f $CurrentUser.userPrincipalName) -ForegroundColor Green
+        Write-Host ("the correct upn: {0}" -f $CurrentAssignedUser.userPrincipalName) -ForegroundColor Green
     
-    }ElseIf( ($CurrentUser.userPrincipalName -ne $Device.AssignedUser) -and $AssignNonAdminUsers )
+    }ElseIf( ($CurrentAssignedUser.userPrincipalName -ne $item.AssignedUser) -and $AssignNonAdminUsers )
     {
         
-        Write-Host ("an another upn: {0}" -f $CurrentUser.userPrincipalName) -ForegroundColor Yellow
+        Write-Host ("a different upn is assigned: {0}" -f $CurrentAssignedUser.userPrincipalName) -ForegroundColor Yellow
         
         #if true, change the assigned profile
-        Write-Host ("  |--re-assigning to: {0}..." -f $Device.AssignedUser) -NoNewline -ForegroundColor White
+        Write-Host ("  |--re-assigning to: {0}..." -f $item.AssignedUser) -NoNewline -ForegroundColor White
         Try{
-            Set-IDMDeviceAssignedUser -DeviceId $DeviceID -UPN $Device.AssignedUser
+            Set-IDMDeviceAssignedUser -DeviceId $DeviceID -UPN $item.AssignedUser -Verbose:$VerbosePreference
             Write-Host ("Completed!") -ForegroundColor Green
         }Catch{
             Write-Host ("Failed: {0}" -f $_.Exception.Message) -ForegroundColor Red
@@ -94,7 +152,10 @@ foreach ($Device in $devicList)
 
     }Else{
         
-        Write-Host ("to non-admin account: {0}" -f $CurrentUser.userPrincipalName) -ForegroundColor White
+        Write-Host ("a non-admin account: {0}" -f $CurrentAssignedUser.userPrincipalName) -ForegroundColor Yellow
     }
     
 }
+
+
+Stop-Transcript

@@ -11,12 +11,12 @@ $app = Import-Clixml "$ResourcePath\tests\dtolab_intuneapp_secret.xml"
 ^ = starts with
 adm- = the prefix for admin accounts
 #>
-$admincheck = '^adm-'
+$AdminRegexCheck = '^adm-'
 
 <# TESTS AGAINST REGEX
-'adm-frankjones@dtolab.ltd' -match $admincheck
-'adam.tool@dtolab.ltd' -match $admincheck
-'admintools@dtolab.ltd' -match $admincheck
+'adm-frankjones@dtolab.ltd' -match $AdminRegexCheck
+'adam.tool@dtolab.ltd' -match $AdminRegexCheck
+'admintools@dtolab.ltd' -match $AdminRegexCheck
 #>
 
 #Set to true to reassign non-admin users. 
@@ -71,12 +71,12 @@ Connect-IDMGraphApp -AppAuthToken $Global:AuthToken
 $AllDevices = Get-IDMDevices
 
 #change assigned profile for eahc device in list
-#TEST $Device = $devicList[0]
-foreach ($Device in $devicList)
+#TEST $item = $devicList[0]
+foreach ($item in $devicList)
 {
-    Write-Host ("Checking device: {0}..." -f $Device.DeviceName) -NoNewline -ForegroundColor White
+    Write-Host ("Checking device: {0}..." -f $item.DeviceName) -NoNewline -ForegroundColor White
     #must get the device id from the display name
-    $DeviceID = $AllDevices | Where-Object { $_.deviceName -eq $Device.DeviceName } | Select-Object -ExpandProperty Id
+    $DeviceID = $AllDevices | Where-Object { $_.deviceName -eq $item.DeviceName } | Select-Object -ExpandProperty Id
 
     If($null -eq $DeviceID)
     {
@@ -88,36 +88,36 @@ foreach ($Device in $devicList)
     
     Write-Host ("  |--Device is assigned to...") -NoNewline -ForegroundColor White
     #get the current assigned user
-    $CurrentUser = Get-IDMDeviceAssignedUser -DeviceId $DeviceID -Passthru
+    $CurrentAssignedUser = Get-IDMDeviceAssignedUser -DeviceId $DeviceID -Passthru
     
     #check if the device is assigned to an admin account
-    If($CurrentUser.userPrincipalName -match $admincheck)
+    If($CurrentAssignedUser.userPrincipalName -match $AdminRegexCheck)
     {
-        Write-Host ("an admin account: {0}" -f $CurrentUser.userPrincipalName) -ForegroundColor Yellow
+        Write-Host ("an admin upn was found: {0}" -f $CurrentAssignedUser.userPrincipalName) -ForegroundColor Yellow
         
         #if true, change the assigned profile
-        Write-Host ("  |--re-assigning to: {0}..." -f $Device.AssignedUser) -NoNewline -ForegroundColor White
+        Write-Host ("  |--re-assigning to: {0}..." -f $item.AssignedUser) -NoNewline -ForegroundColor White
         Try{
-            Set-IDMDeviceAssignedUser -DeviceId $DeviceID -UPN $Device.AssignedUser
+            Set-IDMDeviceAssignedUser -DeviceId $DeviceID -UPN $item.AssignedUser
             Write-Host ("Completed!") -ForegroundColor Green
         }Catch{
             Write-Host ("Failed: {0}" -f $_.Exception.Message) -ForegroundColor Red
             Continue #skip to next device
         }
         
-    }ElseIf($CurrentUser.userPrincipalName -eq $Device.AssignedUser)
+    }ElseIf($CurrentAssignedUser.userPrincipalName -eq $item.AssignedUser)
     {
-        Write-Host ("the correct upn: {0}" -f $CurrentUser.userPrincipalName) -ForegroundColor Green
+        Write-Host ("the correct upn: {0}" -f $CurrentAssignedUser.userPrincipalName) -ForegroundColor Green
     
-    }ElseIf( ($CurrentUser.userPrincipalName -ne $Device.AssignedUser) -and $AssignNonAdminUsers )
+    }ElseIf( ($CurrentAssignedUser.userPrincipalName -ne $item.AssignedUser) -and $AssignNonAdminUsers )
     {
         
-        Write-Host ("an another upn: {0}" -f $CurrentUser.userPrincipalName) -ForegroundColor Yellow
+        Write-Host ("a different upn is assigned: {0}" -f $CurrentAssignedUser.userPrincipalName) -ForegroundColor Yellow
         
         #if true, change the assigned profile
-        Write-Host ("  |--re-assigning to: {0}..." -f $Device.AssignedUser) -NoNewline -ForegroundColor White
+        Write-Host ("  |--re-assigning to: {0}..." -f $item.AssignedUser) -NoNewline -ForegroundColor White
         Try{
-            Set-IDMDeviceAssignedUser -DeviceId $DeviceID -UPN $Device.AssignedUser
+            Set-IDMDeviceAssignedUser -DeviceId $DeviceID -UPN $item.AssignedUser
             Write-Host ("Completed!") -ForegroundColor Green
         }Catch{
             Write-Host ("Failed: {0}" -f $_.Exception.Message) -ForegroundColor Red
@@ -126,7 +126,7 @@ foreach ($Device in $devicList)
 
     }Else{
         
-        Write-Host ("to non-admin account: {0}" -f $CurrentUser.userPrincipalName) -ForegroundColor White
+        Write-Host ("a non-admin account: {0}" -f $CurrentAssignedUser.userPrincipalName) -ForegroundColor Yellow
     }
     
 }
