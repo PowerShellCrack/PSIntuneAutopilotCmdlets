@@ -53,8 +53,6 @@ $LogfileName = "ChangePrimaryUserDeviceList-$(Get-Date -Format 'yyyy-MM-dd_Thh-m
 New-Item "$ResourcePath\Logs" -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
 Try{Start-transcript "$ResourcePath\Logs\$LogfileName" -ErrorAction Stop}catch{Start-Transcript "$ResourcePath\$LogfileName"}
 
-#set the graph endpoint
-$Global:GraphEndpoint = 'https://graph.microsoft.com'
 
 #IMPORT MODULES
 #==============================================
@@ -63,7 +61,10 @@ $modules = @(
     'Az.Accounts',
     'Microsoft.Graph.Authentication',
     'Microsoft.Graph.Applications',
-    'IDMCmdlets'
+    'Microsoft.Graph.Devices',
+    'Microsoft.Graph.Users',
+    'Microsoft.Graph.DeviceManagement',
+    'Microsoft.Graph.Devices.CorporateManagement'
 )
 
 foreach ($module in $modules){
@@ -92,7 +93,7 @@ Write-Verbose ("{0}" -f ($context | out-string))
 
 #Get all devices
 Write-Host "Getting all devices..." -ForegroundColor White
-$AllDevices = Get-IDMDevices -Verbose:$VerbosePreference
+$AllDevices = Get-MgDevices -Verbose:$VerbosePreference
 write-host ("  |--{0} devices found" -f $AllDevices.Count) -ForegroundColor Green
 
 Write-Host '----------------------------------------' -ForegroundColor White
@@ -114,7 +115,7 @@ foreach ($item in $devicList)
     
     Write-Host ("  |--Device is assigned to...") -NoNewline -ForegroundColor White
     #get the current assigned user
-    $CurrentAssignedUser = Get-IDMDeviceAssignedUser -DeviceId $DeviceID -Passthru -Verbose:$VerbosePreference
+    $CurrentAssignedUser = Get-Mg -DeviceId $DeviceID -Passthru -Verbose:$VerbosePreference
     Write-Verbose ("{0}" -f ($CurrentAssignedUser | out-string))
     #check if the device is assigned to an admin account
     If($CurrentAssignedUser.userPrincipalName -match $AdminRegexCheck)

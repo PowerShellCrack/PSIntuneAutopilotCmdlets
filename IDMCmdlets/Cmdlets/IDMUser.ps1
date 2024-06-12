@@ -243,7 +243,7 @@ Function Get-IDMDeviceAssignedUser{
         try {
             $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
             Write-Verbose "Get $uri"
-            $response = (Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop).Value
+            $response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
         }
         catch {
             Write-ErrorResponse($_)
@@ -252,17 +252,10 @@ Function Get-IDMDeviceAssignedUser{
     }
     End{
         If($Passthru){
-            $userdetails = "" | Select-Object UserPrincipalName,Id,DisplayName,EmailAddress,OnPremisesAccount,AccountEnabled
-            $userdetails.Id = $response.id
-            $userdetails.UserPrincipalName = $response.userPrincipalName
-            $userdetails.DisplayName = $response.displayName
-            $userdetails.EmailAddress = $response.email
-            $userdetails.OnPremisesAccount = $response.onPremisesSyncEnabled
-            $userdetails.AccountEnabled = $response.AccountEnabled
-            return $userdetails
+            return $Response.Value
         }
         else{
-            return $response.id
+            return (ConvertFrom-GraphHashtable $Response.Value -ResourceUri "$Global:GraphEndpoint/$graphApiVersion/$Resource")
         }
     }
 }
