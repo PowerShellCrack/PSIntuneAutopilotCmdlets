@@ -243,7 +243,7 @@ Function Get-IDMDeviceAssignedUser{
         try {
             $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
             Write-Verbose "Get $uri"
-            $response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
+            $response = (Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop).Value
         }
         catch {
             Write-ErrorResponse($_)

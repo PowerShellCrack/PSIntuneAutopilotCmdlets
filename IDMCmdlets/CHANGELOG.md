@@ -1,6 +1,6 @@
 # Change log for IDMCmdlets
 
-## 1.0.3.0 June 12, 2024
+## 1.0.3.1 June 12, 2024
 
 - Fixed Assigned user fo device; only grabbed owner
 
