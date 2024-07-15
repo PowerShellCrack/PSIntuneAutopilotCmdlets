@@ -36,4 +36,4 @@ Connect-MgGraph -NoWelcome
 
 #Set the latest Windows 11 OS release as the minimum version for the compliance policy
 $MiniOS = Get-IDMCompliancePolicyOSRelease -Platform "Windows11" -Latest
-$PolicyId | Update-IDMCompliancePoliciesOSVersion -OSVersionType MinimumVersion -PolicyId $PolicyId -OSVersion $MiniOS
+Update-IDMCompliancePoliciesOSVersion -OSVersionType MinimumVersion -PolicyId $PolicyId -OSVersion $MiniOS
