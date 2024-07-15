@@ -4,7 +4,7 @@
     RootModule = 'IDMCmdlets.psm1'
 
     # Version number of this module.
-    ModuleVersion = '1.0.3.2'
+    ModuleVersion = '1.0.3.3'
 
     # ID used to uniquely identify this module
     GUID = 'a8428a2b-be4c-43c7-b44c-ea20d0d04490'
@@ -72,6 +72,8 @@
         'Get-IDMAzureGroup'
         'Get-IDMAzureUser'
         'Get-IDMAzureUsers'
+        'Get-IDMCompliancePolicies'
+        'Get-IDMCompliancePolicyOSRelease'
         'Get-IDMDevice'
         'Get-IDMDeviceAADUser'
         'Get-IDMDeviceAssignedUser'
@@ -114,6 +116,7 @@
         'Set-IDMRole'
         'Split-IDMRequests'
         'Update-IDMAzureDynamicGroup'
+        'Update-IDMCompliancePoliciesOSVersion'
         'Update-IDMGraphApp'
         'Update-IDMRoleAssignmentGroups'
     )

@@ -2,7 +2,7 @@
 .SYNOPSIS
     This script will change the primary user of a list of devices in Azure AD.
 .DESCRIPTION
-    This script will change the primary user of a list of devices in Azure AD. The script will check if the device is assigned to an admin account. If the device is assigned to an admin account, the script will re-assign the device to the user specified in the list. If the device is not assigned to an admin account, the script will only re-assign the device if the current assigned user is different from the user specified in the list. The script will log all changes to a log file in the Logs directory.
+    This script will change the primary user of a list of devices in Azure AD. The script will check if the device is assigned to an admin account. 
 .PARAMETER ListFile
     The name of the CSV file containing the list of devices to change. The default value is 'devicelist.example.csv'.
 .PARAMETER AssignNonAdminUsers
@@ -15,8 +15,10 @@
 .EXAMPLE
     ChangePrimaryUserDeviceList.ps1 -ListFile devicelist.csv
     This example will change the primary user of the devices in the 'devicelist.csv' file. The script will only re-assign devices that are assigned to an admin account.
+.NOTES
+    Update-MgDeviceManagementManagedDevice NOT WORKING. Errors with: Microsoft.Graph.PowerShell.Models.IMicrosoftGraphUser
 #>
-#import device
+
 [CmdletBinding()]
 Param(
     [Parameter(Mandatory = $false)]
@@ -60,7 +62,8 @@ Try{Start-transcript "$ResourcePath\Logs\$LogfileName" -ErrorAction Stop}catch{S
 $modules = @(
     'Microsoft.Graph.Authentication',
     'Microsoft.Graph.Applications',
-    'Microsoft.Graph.DeviceManagement'
+    'Microsoft.Graph.Beta.DeviceManagement',
+    'Microsoft.Graph.Beta.Users'
 )
 
 foreach ($module in $modules){
@@ -89,7 +92,7 @@ Write-Verbose ("{0}" -f ($context | out-string))
 
 #Get all devices
 Write-Host "Getting all devices..." -ForegroundColor White
-$AllDevices = Get-MgDeviceManagementManagedDevice -All -Verbose:$VerbosePreference
+$AllDevices = Get-MgBetaDeviceManagementManagedDevice -All -Verbose:$VerbosePreference
 write-host ("  |--{0} devices found" -f $AllDevices.Count) -ForegroundColor Green
 
 Write-Host '----------------------------------------' -ForegroundColor White
@@ -111,7 +114,8 @@ foreach ($item in $devicList)
     
     Write-Host ("  |--Device is assigned to...") -NoNewline -ForegroundColor White
     #get the current assigned user
-    $CurrentAssignedUser = Get-MgDeviceManagementManagedDeviceUser -ManagedDeviceId $DeviceID -Verbose:$VerbosePreference
+    $CurrentAssignedUser = Get-MgBetaDeviceManagementManagedDeviceUser -ManagedDeviceId $DeviceID -Verbose:$VerbosePreference
+    $NewAssignedUser = Get-MgBetaUser -ConsistencyLevel eventual -Filter "startsWith(userPrincipalName, '$($item.AssignedUser)')"
     Write-Verbose ("{0}" -f ($CurrentAssignedUser | out-string))
     #check if the device is assigned to an admin account
     If($CurrentAssignedUser.userPrincipalName -match $AdminRegexCheck)
@@ -121,7 +125,7 @@ foreach ($item in $devicList)
         #if true, change the assigned profile
         Write-Host ("  |--re-assigning to: {0}..." -f $item.AssignedUser) -NoNewline -ForegroundColor White
         Try{
-            Update-MgDeviceManagementManagedDevice -ManagedDeviceId $DeviceID -Users $item.AssignedUser -Verbose:$VerbosePreference
+            Update-MgBetaDeviceManagementManagedDevice -ManagedDeviceId $DeviceID -Users $NewAssignedUser -Verbose:$VerbosePreference
             Write-Host ("Completed!") -ForegroundColor Green
         }Catch{
             Write-Host ("Failed: {0}" -f $_.Exception.Message) -ForegroundColor Red
@@ -140,7 +144,7 @@ foreach ($item in $devicList)
         #if true, change the assigned profile
         Write-Host ("  |--re-assigning to: {0}..." -f $item.AssignedUser) -NoNewline -ForegroundColor White
         Try{
-            Update-MgDeviceManagementManagedDevice -ManagedDeviceId $DeviceID -Users $item.AssignedUser -Verbose:$VerbosePreference
+            Update-MgBetaDeviceManagementManagedDevice -ManagedDeviceId $DeviceID -Users $NewAssignedUser -Verbose:$VerbosePreference
             Write-Host ("Completed!") -ForegroundColor Green
         }Catch{
             Write-Host ("Failed: {0}" -f $_.Exception.Message) -ForegroundColor Red

@@ -1,5 +1,11 @@
 # Change log for IDMCmdlets
 
+## 1.0.3.3 July 15, 2024
+
+- Added Compliancpolicy check
+- Added OS release function (https://endoflife.date/docs/api)
+- Added ability to easily set complianc policy minimum OS version
+
 ## 1.0.3.2 June 12, 2024
 
 - Fixed Assigned user fo device; only grabbed owner
