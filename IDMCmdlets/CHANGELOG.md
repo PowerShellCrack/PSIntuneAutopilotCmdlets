@@ -1,6 +1,6 @@
 # Change log for IDMCmdlets
 
-## 1.0.3.3 July 15, 2024
+## 1.0.3.4 July 15, 2024
 
 - Added Compliancpolicy check
 - Added OS release function (https://endoflife.date/docs/api)
