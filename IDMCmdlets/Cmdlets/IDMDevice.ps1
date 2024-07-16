@@ -130,7 +130,7 @@ Function Get-IDMDevice{
 
     $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource" + $filterQuery
     try {
-        Write-Verbose ("Invoking API: {0}" -f $uri)
+        Write-Verbose ("Invoking GET API: {0}" -f $uri)
         $graphData = (Invoke-MgGraphRequest -Method Get -Uri $uri)
     }
     catch {
@@ -357,7 +357,7 @@ Function Get-IDMDevices{
     $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource" + $filterQuery
 
     try {
-        Write-Verbose "Get $uri"
+        Write-Verbose ("Invoking GET API: {0}" -f $uri)
         $Response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
     }
     catch {
@@ -508,7 +508,7 @@ Function Get-IDMAzureDevices{
         $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource" + $filterQuery
 
         try {
-            Write-Verbose "Get $uri"
+            Write-Verbose ("Invoking GET API: {0}" -f $uri)
             $Response = Invoke-MgGraphRequest -Uri $uri @RequestParams -Method Get -ErrorAction Stop
         }
         catch {
@@ -563,9 +563,10 @@ Function Get-IDMDevicePendingActions{
         $Resource = "deviceManagement/managedDevices"
     }
     Process{
-        try {
-            $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource/$DeviceID"
-            Write-Verbose "Get $uri"
+        $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource/$DeviceID"
+
+        try {    
+            Write-Verbose ("Invoking GET API: {0}" -f $uri)
             $response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
         }
         catch {
@@ -609,7 +610,7 @@ Function Get-IDMDeviceCategory{
     $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource"
 
     try {
-        Write-Verbose "GET $uri"
+        Write-Verbose ("Invoking GET API: {0}" -f $uri)
         $response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
     }
     catch {
@@ -665,7 +666,7 @@ Function Set-IDMDeviceCategory{
     $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource/$DeviceID/deviceCategory/`$ref"
 
     try {
-        Write-Verbose "GET $uri"
+        Write-Verbose ("Invoking PUT API: {0}" -f $uri)
         $null = Invoke-MgGraphRequest -Uri $uri -Body $BodyJson -Method PUT -ErrorAction Stop
     }
     catch {
@@ -702,8 +703,6 @@ Function Invoke-IDMDeviceAction{
         $NewDeviceName
     )
     Begin{
-        ## Get the name of this function
-        [string]${CmdletName} = $PSCmdlet.MyInvocation.MyCommand.Name
 
         if (-not $PSBoundParameters.ContainsKey('Verbose')) {
             $VerbosePreference = $PSCmdlet.SessionState.PSVariable.GetValue('VerbosePreference')
@@ -842,7 +841,7 @@ Function Invoke-IDMDeviceAction{
         else {
             Write-host $ActionMsg
             try {
-                Write-Verbose ("{0}: {1}" -f $RequestParams.Method,$RequestParams.uri)
+                Write-Verbose ("Invoking {0} API:  {1}" -f $RequestParams.Method,$RequestParams.uri)
                 $null = Invoke-MgGraphRequest @RequestParams -ErrorAction Stop
             }
             catch {
@@ -1045,14 +1044,14 @@ Function Get-IDMStaleDevices{
 
     <#
     .SYNOPSIS
-    This function is used to get Intune Managed Devices from the Graph API REST interface
+        This function is used to get Intune Managed Devices from the Graph API REST interface
     .DESCRIPTION
-    The function connects to the Graph API Interface and gets any Intune Managed Device that has not synced with the service in the past X days
+        The function connects to the Graph API Interface and gets any Intune Managed Device that has not synced with the service in the past X days
     .EXAMPLE
-    Get-IDMStaleDevices
-    Returns all managed devices but excludes EAS devices registered within the Intune Service that have not checked in for X days
+        Get-IDMStaleDevices
+        Returns all managed devices but excludes EAS devices registered within the Intune Service that have not checked in for X days
     .NOTES
-    https://docs.microsoft.com/en-us/azure/active-directory/devices/manage-stale-devices
+        https://docs.microsoft.com/en-us/azure/active-directory/devices/manage-stale-devices
     #>
 
     [cmdletbinding()]
@@ -1061,6 +1060,7 @@ Function Get-IDMStaleDevices{
         [Int]$cutoffDays,
         [switch]$Passthru
     )
+
     # Defining graph variables
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/managedDevices"
@@ -1075,10 +1075,12 @@ Function Get-IDMStaleDevices{
     $uri = ("$global:GraphEndpoint/$graphApiVersion/$($Resource)?`$filter=managementAgent eq 'mdm' or managementAgent eq 'easMDM' and lastSyncDateTime le $cutoffDate")
 
     try {
+        Write-Verbose ("Invoking GET API: {0}" -f $uri)
         $devices = (Invoke-MgGraphRequest -Uri $uri -Method Get).Value
     }catch {
         Write-ErrorResponse($_.Exception)
     }
+
     If($Passthru){
         return $devices
     }Else{
@@ -1123,7 +1125,7 @@ Function Get-IDMStaleAzureDevices{
     $uri = "$global:GraphEndpoint/$graphApiVersion/$($Resource)"
 
     try {
-        Write-Verbose $uri
+        Write-Verbose ("Invoking GET API: {0}" -f $uri)
         $devices = (Invoke-MgGraphRequest -Uri $uri -Method Get).Value | Where {($_.ApproximateLastLogonTimeStamp -le $cutoffDate) -and ($_.AccountEnabled -eq $false)}
     }catch {
         Write-ErrorResponse($_.Exception)
@@ -1166,6 +1168,8 @@ function Remove-IDMStaleDevices{
         $Resource = "deviceManagement/managedDevices('$DeviceID')"
         $uri = "$global:GraphEndpoint/$graphApiVersion/$($resource)"
         Write-Output "Sending delete command to $DeviceID"
+
+        Write-Verbose ("Invoking DELETE API: {0}" -f $uri)
         Invoke-MgGraphRequest -Uri $uri -Method Delete -UseBasicParsing
     }catch {
         Write-ErrorResponse($_.Exception)
@@ -1195,7 +1199,7 @@ Function Get-IDMAzureDeviceExtension {
 
     $uri = "$global:GraphEndpoint/$graphApiVersion/$($Resource)/$($DeviceID)?`$select=extensionAttributes"
     try {
-        Write-Verbose $uri
+        Write-Verbose ("Invoking GET API: {0}" -f $uri)
         $response = Invoke-MgGraphRequest -Uri $uri -Method Get
     }catch {
         Write-ErrorResponse($_.Exception)
@@ -1245,7 +1249,7 @@ Function Set-IDMAzureDeviceExtension {
     $uri = "$global:GraphEndpoint/$graphApiVersion/$($Resource)/$($DeviceID)"
 
     try {
-        Write-Verbose $uri
+        Write-Verbose ("Invoking PATCH API: {0}" -f $uri)
         $null = Invoke-MgGraphRequest -Uri $uri -Method Patch -Body $JsonBody
     }
     catch {

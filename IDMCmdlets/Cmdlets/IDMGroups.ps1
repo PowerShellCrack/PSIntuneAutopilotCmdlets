@@ -39,8 +39,12 @@ Function Get-IDMAzureGroup{
     param
     (
         [string]$GroupName,
+        
         [string]$id,
-        [switch]$Members
+
+        [switch]$Members,
+
+        [switch]$Passthru
     )
 
     # Defining graph variables
@@ -61,27 +65,36 @@ Function Get-IDMAzureGroup{
         $FilterString = "?`$filter=displayname eq '$GroupName'"
         $ShowAll = $False
     }
-
+    
+    $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)$FilterString"
+    
     try {
-        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)$FilterString"
-        $Result = Invoke-MgGraphRequest -Method Get -Uri $uri -ErrorAction Stop
+        Write-Verbose ("Invoking GET API: {0}" -f $uri)
+        $Response = Invoke-MgGraphRequest -Method Get -Uri $uri -ErrorAction Stop
 
         # if group or id is not found or null, by default, all groups are displayed
         #ensure all groups are not displayed when id or groupname params are used
-        If($ShowAll -eq $False -and $Result.value.$Property -ne $Value){
-            $Result = $Null
+        If($ShowAll -eq $False -and $Response.value.$Property -ne $Value){
+            return $false
         }
 
         If($Members)
         {
-            Foreach($Group in $Result.value){
+            Foreach($Group in $Response.value){
                 $GID = $Group.id
                 $uri = "$Global:GraphEndpoint/$graphApiVersion/$($GroupResource)/$GID/Members"
+                
+                Write-Verbose ("Invoking GET API: {0}" -f $uri)
                 (Invoke-MgGraphRequest -Method Get -Uri $uri -ErrorAction Stop).Value
             }
         }
         Else{
-            $Result.value
+            If($Passthru){
+                return $Response.value
+            }
+            else{
+                return (ConvertFrom-GraphHashtable $Response.value -ResourceUri "$Global:GraphEndpoint/$graphApiVersion/$Resource")
+            }
         }
     }
     Catch{
@@ -164,11 +177,12 @@ Function New-IDMAzureGroup{
     }
     $JSON = $object | ConvertTo-Json
 
-    try {
+    $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
 
-        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
-        $Result = Invoke-MgGraphRequest -Method Post -Uri $uri -Body $JSON -ErrorAction Stop
-        return $Result
+    try {
+        Write-Verbose ("Invoking POST API: {0}" -f $uri)
+        $Response = Invoke-MgGraphRequest -Method Post -Uri $uri -Body $JSON -ErrorAction Stop
+        return $Response
 
     }
     catch {
@@ -229,11 +243,12 @@ Function New-IDMAzureDynamicGroup{
     $object | Add-Member -MemberType NoteProperty -Name 'membershipRuleProcessingState' -Value "on"
     $JSON = $object | ConvertTo-Json
 
-    try {
+    $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
 
-        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
-        $Result = Invoke-MgGraphRequest -Method Post -Uri $uri -Body $JSON -ErrorAction Stop
-        return $Result
+    try {    
+        Write-Verbose ("Invoking POST API: {0}" -f $uri)
+        $Response = Invoke-MgGraphRequest -Method Post -Uri $uri -Body $JSON -ErrorAction Stop
+        return $Response
 
     }
     catch {
@@ -333,8 +348,10 @@ Function Update-IDMAzureDynamicGroup{
     }
     $JSON = $object | ConvertTo-Json
 
-    try {
-        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$($ExistingGroup.Id)"
+    $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$($ExistingGroup.Id)"
+
+    try {    
+        Write-Verbose ("Invoking PATCH API: {0}" -f $uri)
         $null = Invoke-MgGraphRequest -Method Patch -Uri $uri -Body $JSON -ErrorAction Stop
     }
     catch {
@@ -385,8 +402,10 @@ Function Remove-IDMAzureGroup{
         Break
     }
 
+    $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$AzureGroupId"
+
     try {
-        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$AzureGroupId"
+        Write-Verbose ("Invoking DELETE API: {0}" -f $uri)
         Invoke-MgGraphRequest -Uri $uri -Method Delete
     }
     catch {

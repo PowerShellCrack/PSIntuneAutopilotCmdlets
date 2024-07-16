@@ -239,10 +239,10 @@ Function Get-IDMDeviceAssignedUser{
     }
     Process{
         $Resource = "deviceManagement/manageddevices('$DeviceID')/users"
-
-        try {
-            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
-            Write-Verbose "Get $uri"
+        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
+        
+        try {    
+            Write-Verbose ("Invoking GET API: {0}" -f $uri)
             $response = Invoke-MgGraphRequest -Uri $uri -Method Get -ErrorAction Stop
         }
         catch {
@@ -324,7 +324,7 @@ function Set-IDMDeviceAssignedUser {
         $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
 
         try {
-            Write-Verbose "Get $uri"
+            Write-Verbose ("Invoking POST API: {0}" -f $uri)
             $null = Invoke-MgGraphRequest -Uri $uri -Method Post -Body $JSON -ErrorAction Stop
         } catch {
             Write-ErrorResponse($_)

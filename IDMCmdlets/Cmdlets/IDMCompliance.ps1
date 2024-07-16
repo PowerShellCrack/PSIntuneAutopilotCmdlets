@@ -93,7 +93,7 @@ Function Get-IDMCompliancePolicies {
 }
 
 
-Function Update-IDMCompliancePoliciesOSVersion{
+Function Update-IDMCompliancePolicyOSVersion{
 
     <#
     .SYNOPSIS
@@ -112,10 +112,10 @@ Function Update-IDMCompliancePoliciesOSVersion{
     The compliance policy to set.
     
     .EXAMPLE
-    Update-IDMCompliancePoliciesOSVersion -PolicyId "b79cb75a-2dd7-496e-b9af-13f0e9e2bba0" -OSVersionType "MinimumVersion" -OSVersion "10.0.19041.0"
+    Update-IDMCompliancePolicyOSVersion -PolicyId "b79cb75a-2dd7-496e-b9af-13f0e9e2bba0" -OSVersionType "MinimumVersion" -OSVersion "10.0.19041.0"
 
     .EXAMPLE
-    Update-IDMCompliancePoliciesOSVersion -PolicyId "b79cb75a-2dd7-496e-b9af-13f0e9e2bba0" -OSVersionType "MaximumVersion" -OSVersion "10.0.19041.0"
+    Update-IDMCompliancePolicyOSVersion -PolicyId "58aaee1b-9930-4c56-8135-722e7efa327f" -OSVersionType "MaximumVersion" -OSVersion "14"
     #>
 
     [cmdletbinding()]
@@ -140,26 +140,23 @@ Function Update-IDMCompliancePoliciesOSVersion{
 
     $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource/$PolicyId"
 
-    #Collect the results of the API call
-    try {
-        Write-Verbose ("Invoking GET API: {0}" -f $uri)
-        $graphData = (Invoke-MgGraphRequest -Method Get -Uri $uri)
-    }
-    catch {
-        Write-ErrorResponse($_)
-    }
+    $Policy = Get-IDMCompliancePolicies -PolicyId $PolicyId
 
-    If($Null -ne $graphData){
+    If($Null -ne $Policy){
+        #Update the OS version
         switch($OSVersionType){
             "MinimumVersion"{
-                $graphData.osMinimumVersion = $OSVersion
+                $Policy.osMinimumVersion = $OSVersion
             }
             "MaximumVersion"{
-                $graphData.osMaximumVersion = $OSVersion
+                $Policy.osMaximumVersion = $OSVersion
             }
         }
 
-        $Payload = $graphData | ConvertTo-Json -Depth 10
+        #Convert the hashtable to JSON
+        $Payload = $Policy | Select-Object -ExcludeProperty uri,id,version  | ConvertTo-Json -Depth 10
+        
+        #Update the compliance policy
         try {
             Write-Verbose ("Invoking PATCH API: {0}" -f $uri)
             Invoke-MgGraphRequest -Method Patch -Uri $uri -Body $Payload
@@ -167,9 +164,10 @@ Function Update-IDMCompliancePoliciesOSVersion{
         catch {
             Write-ErrorResponse($_)
         }
+    }Else{
+        Write-Error "Compliance Policy not found with ID: $PolicyId"
+        Return $False
     }
-    
-
 }
 
 Function Get-IDMWindowsUpdateCatalog{
@@ -274,7 +272,35 @@ Function Get-IDMWindowsUpdateCatalog{
 }
 
 Function Get-IDMCompliancePolicyOSRelease{
+    <#
+    .SYNOPSIS
+    Get the latest OS release for a specific platform.
+
+    .DESCRIPTION
+    This cmdlet retrieves the latest OS release for a specific platform.
+
+    .PARAMETER Platform
+    The platform to retrieve the latest OS release for.
+
+    .PARAMETER Latest
+    Get the latest OS release.
+
+    .PARAMETER Passthru
+    Return the raw data from the Graph API.
+
+    .EXAMPLE
+    Get-IDMCompliancePolicyOSRelease -Platform Windows11
+
+    .EXAMPLE
+    Get-IDMCompliancePolicyOSRelease -Platform iOS -Latest
+
+    .EXAMPLE
+    Get-IDMCompliancePolicyOSRelease -Platform Windows10 -Passthru
+
+    .NOTES
+    https://endoflife.date
     
+    #>
     [cmdletbinding()]
     param
     (
@@ -294,42 +320,49 @@ Function Get-IDMCompliancePolicyOSRelease{
         "Windows11"{
             #get latest OS version for Windows 11
             $url = "https://endoflife.date/api/windows.json"
+            Write-Verbose ("Invoking GET URL: {0}" -f $url)
             $OSRelease  = Invoke-WebRequest -Uri $url -Method Get -UseBasicParsing | ConvertFrom-Json | Where-Object releaseLabel -like "11*"
             $property = 'latest'
         }
         "Windows10"{
             #get latest OS version for Windows 10
             $url = "https://endoflife.date/api/windows.json"
+            Write-Verbose ("Invoking GET URL: {0}" -f $url)
             $OSRelease  = Invoke-WebRequest -Uri $url -Method Get -UseBasicParsing | ConvertFrom-Json | Where-Object releaseLabel -like "10*"
             $property = 'latest'
         }
         "iOS"{
             #get latest OS version for iOS
             $url = "https://endoflife.date/api/ios.json"
+            Write-Verbose ("Invoking GET URL: {0}" -f $url)
             $OSRelease  = Invoke-WebRequest -Uri $url -Method Get -UseBasicParsing | ConvertFrom-Json
             $property = 'latest'
         }
         "Android"{
             #get latest OS version for Android
             $url = "https://endoflife.date/api/android.json"
+            Write-Verbose ("Invoking GET URL: {0}" -f $url)
             $OSRelease  = Invoke-WebRequest -Uri $url -Method Get -UseBasicParsing | ConvertFrom-Json
             $property = 'cycle'
         }
         "macOS"{
             #get latest OS version for macOS
             $url = "https://endoflife.date/api/macos.json"
+            Write-Verbose ("Invoking GET URL: {0}" -f $url)
             $OSRelease  = Invoke-WebRequest -Uri $url -Method Get -UseBasicParsing | ConvertFrom-Json
             $property = 'latest'
         }
         "Ubuntu"{
             #get latest OS version for Ubuntu
             $url = "https://endoflife.date/api/ubuntu.json"
+            Write-Verbose ("Invoking GET URL: {0}" -f $url)
             $OSRelease  = Invoke-WebRequest -Uri $url -Method Get -UseBasicParsing | ConvertFrom-Json
             $property = 'latest'
         }
         "RHEL"{
             #get latest OS version for RHEL
             $url = "https://endoflife.date/api/rhel.json"
+            Write-Verbose ("Invoking GET URL: {0}" -f $url)
             $OSRelease  = Invoke-WebRequest -Uri $url -Method Get -UseBasicParsing | ConvertFrom-Json
             $property = 'latest'
         }

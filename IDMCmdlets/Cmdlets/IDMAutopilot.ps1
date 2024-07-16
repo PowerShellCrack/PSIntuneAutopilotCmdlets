@@ -42,13 +42,9 @@ Function Get-IDMAutopilotProfile{
         $uri = $uri + "?`$expand=assignments"
     }
 
-    # add method to the request, Exclude URI from the request so that it won't concflict with nextLink URI
-
-    Write-Verbose "GET $uri"
-
     #Collect the results of the API call
     try {
-        Write-Verbose ("Invoking API: {0}" -f $uri)
+        Write-Verbose ("Invoking GET API: {0}" -f $uri)
         $graphData = (Invoke-MgGraphRequest -Method Get -Uri $uri)
     }
     catch {
@@ -89,7 +85,7 @@ Function Get-IDMAutopilotProfile{
         return $allPages
     }
     else{
-        return (ConvertFrom-GraphHashtable $allPages -ResourceUri $uri)
+        return (ConvertFrom-GraphHashtable $allPages -ResourceUri "$Global:GraphEndpoint/$graphApiVersion/$Resource")
     }
 
 }
@@ -145,24 +141,22 @@ Function Get-IDMAutopilotDevice{
     Process {
 
         if ($id -and $Expand) {
-            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$($id)?`$expand=deploymentProfile,intendedDeploymentProfile"
+            $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource/$($id)?`$expand=deploymentProfile,intendedDeploymentProfile"
         }
         elseif ($id) {
-            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$id"
+            $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource/$id"
         }
         elseif ($serial) {
             $encoded = [uri]::EscapeDataString($serial)
             $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)?`$filter=contains(serialNumber,'$encoded')"
         }
         else {
-            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
+            $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource"
         }
-
-        Write-Verbose "GET $uri"
 
         #Collect the results of the API call
         try {
-            Write-Verbose ("Invoking API: {0}" -f $uri)
+            Write-Verbose ("Invoking GET API: {0}" -f $uri)
             $graphData = (Invoke-MgGraphRequest -Method Get -Uri $uri)
         }
         catch {
@@ -212,7 +206,7 @@ Function Get-IDMAutopilotDevice{
             return $devices
         }
         else{
-            return (ConvertFrom-GraphHashtable $devices -ResourceUri $uri)
+            return (ConvertFrom-GraphHashtable $devices -ResourceUri "$Global:GraphEndpoint/$graphApiVersion/$Resource")
         }
     }
 }
@@ -275,7 +269,7 @@ Function Set-IDMAutopilotDeviceTag{
         #>
 
         try {
-            Write-Verbose "GET $uri"
+            Write-Verbose ("Invoking POST API: {0}" -f $uri)
             $null = Invoke-MgGraphRequest -Uri $uri -Body $BodyJson -Method POST -ErrorAction Stop
         }
         catch {
@@ -325,7 +319,7 @@ Function Add-IDMAutopilotProfileToDevice{
         $BodyJson = $requestBody | ConvertTo-Json
 
         try {
-            Write-Verbose "GET $uri"
+            Write-Verbose ("Invoking POST API: {0}" -f $uri)
             $null = Invoke-MgGraphRequest -Uri $uri -Body $BodyJson -Method POST -ErrorAction Stop
         }
         catch {

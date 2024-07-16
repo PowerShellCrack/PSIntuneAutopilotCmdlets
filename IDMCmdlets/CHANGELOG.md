@@ -1,10 +1,12 @@
 # Change log for IDMCmdlets
 
-## 1.0.3.4 July 15, 2024
+## 1.0.3.5 July 15, 2024
 
-- Added Compliancpolicy check
+- Added Compliance policy check
 - Added OS release function (https://endoflife.date/docs/api)
-- Added ability to easily set complianc policy minimum OS version
+- Added ability to easily set compliance policy minimum OS version
+- Added ability to easily set the app protection OS launch version
+- Updated each cmdleted verbose
 
 ## 1.0.3.2 June 12, 2024
 

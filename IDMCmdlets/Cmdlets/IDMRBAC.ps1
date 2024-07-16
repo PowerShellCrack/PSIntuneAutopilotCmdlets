@@ -46,14 +46,13 @@ Function Get-IDMRole{
     $Resource = "deviceManagement/roleDefinitions"
 
     try {
+        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
+        Write-Verbose ("Invoking GET API: {0}" -f $uri)
 
-        if($Name){
-
-            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
+        if($Name){    
             $Result = (Invoke-MgGraphRequest -Uri $uri -Method Get).Value | Where-Object { ($_.'displayName').contains("$Name") -and $_.isBuiltInRoleDefinition -eq $IncludeBuiltin }
         }
         else {
-            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
             $Result = (Invoke-MgGraphRequest -Uri $uri -Method Get).Value
         }
 
@@ -62,6 +61,8 @@ Function Get-IDMRole{
             #TEST $Def = $Result[0]
             Foreach($Def in $Result){
                 $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource('$($Def.id)')?`$expand=roleassignments"
+                
+                Write-Verbose ("Invoking GET API: {0}" -f $uri)
                 (Invoke-MgGraphRequest -Uri $uri -Method Get).roleAssignments
             }
         }
@@ -69,7 +70,6 @@ Function Get-IDMRole{
             return $Result
         }
     }
-
     catch {
         Write-ErrorResponse($_)
     }
@@ -108,8 +108,9 @@ Function New-IDMRole{
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/roleDefinitions"
 
+    $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
     try {
-        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
+        Write-Verbose ("Invoking POST API: {0}" -f $uri)
         Invoke-MgGraphRequest -Uri $uri -Method Post -Body $JsonDefinition
     }
     catch {
@@ -187,8 +188,9 @@ Function Set-IDMRole{
     #build Json body from object
     $JsonDefinition = $RoleObject | ConvertTo-Json -Depth 10
     #test $id='5d789e69-e99d-40dc-aaea-02bddfb2a8bc'
+    $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$($Id)"
     try {
-        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$($Id)"
+        Write-Verbose ("Invoking POST API: {0}" -f $uri)
         Invoke-MgGraphRequest -Uri $uri -Method Patch -Body $JsonDefinition
     }
     catch {
@@ -250,9 +252,10 @@ Function Remove-IDMRole{
         Write-verbose ("No Role by the name of [{0}] or is a builtin role" -f $DisplayName)
         Break
     }
-
-    try {
-        $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource('$($RoleId)')"
+    $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource('$($RoleId)')"
+    
+    try {    
+        Write-Verbose ("Invoking DELETE API: {0}" -f $uri)
         Invoke-MgGraphRequest -Uri $uri -Method Delete
     }
     catch {
@@ -303,20 +306,20 @@ Function Get-IDMScopeTag{
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/roleScopeTags"
 
-    try {
-        if($DisplayName){
-            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)`?`$filter=displayName eq '$DisplayName'"
-            $Result = Invoke-MgGraphRequest -Method Get -Uri $uri -ErrorAction Stop
-        }
-        elseif($Id){
-            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)`?`$filter=id eq '$Id'"
-            $Result = Invoke-MgGraphRequest -Method Get -Uri $uri -ErrorAction Stop
-        }
-        else {
-            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
-            $Result = Invoke-MgGraphRequest -Method Get -Uri $uri -ErrorAction Stop
+    if($DisplayName){
+        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)`?`$filter=displayName eq '$DisplayName'"
+    }
+    elseif($Id){
+        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)`?`$filter=id eq '$Id'"
+    }
+    else {
+        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
+    }
 
-        }
+    try {
+        Write-Verbose ("Invoking GET API: {0}" -f $uri)
+        $Result = Invoke-MgGraphRequest -Method Get -Uri $uri -ErrorAction Stop
+        
         return $Result.Value
     }
     catch {
@@ -366,8 +369,9 @@ Function New-IDMScopeTag{
     $object | Add-Member -MemberType NoteProperty -Name "isBuiltIn" -Value $false
     $JSON = $object | ConvertTo-Json
 
+    $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/"
     try {
-        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/"
+        Write-Verbose ("Invoking POST API: {0}" -f $uri)
         $result = Invoke-MgGraphRequest -Method Post -Uri $uri -Body $JSON -ErrorAction Stop
         return $result.id
     }
@@ -418,8 +422,9 @@ Function Remove-IDMScopeTag{
         Break
     }
 
+    $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource('$($ScopeTagId)')"
     try {
-        $uri = "$Global:GraphEndpoint/$graphApiVersion/$Resource('$($ScopeTagId)')"
+        Write-Verbose ("Invoking DELETE API: {0}" -f $uri)
         Invoke-MgGraphRequest -Uri $uri -Method Delete
     }
 
@@ -494,12 +499,11 @@ Function Invoke-IDMRoleAssignment{
     $object | Add-Member -MemberType NoteProperty -Name 'roleDefinition@odata.bind' -Value "$Global:GraphEndpoint/$graphApiVersion/deviceManagement/roleDefinitions('$Id')"
     $JSON = $object | ConvertTo-Json
 
+    $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
     try {
-
-        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
+        Write-Verbose ("Invoking POST API: {0}" -f $uri)
         $Result = Invoke-MgGraphRequest -Method Post -Uri $uri -Body $JSON -ErrorAction Stop
         return $Result
-
     }
     catch {
         Write-ErrorResponse($_)
@@ -609,9 +613,9 @@ Function Update-IDMRoleAssignmentGroups{
     }
     $JSON = $object | ConvertTo-Json
 
+    $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$RoleDefinitionId/roleAssignments/$AssignmentId"
     try {
-
-        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$RoleDefinitionId/roleAssignments/$AssignmentId"
+        Write-Verbose ("Invoking PATCH API: {0}" -f $uri)
         $Result = Invoke-MgGraphRequest -Method Patch -Uri $uri -Body $JSON -ErrorAction Stop
         return $Result
 
@@ -722,9 +726,9 @@ Function Invoke-IDMRoleAssignmentAll{
     }
     $JSON = $object | ConvertTo-Json
 
+    $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$Id/roleAssignments"
     try {
-
-        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$Id/roleAssignments"
+        Write-Verbose ("Invoking POST API: {0}" -f $uri)
         $Result = Invoke-MgGraphRequest -Method Post -Uri $uri -Body $JSON -ErrorAction Stop
         return $Result
 
@@ -778,8 +782,11 @@ Function Get-IDMScopeTagAssignment{
     If($ScopeTagId){
         $ScopeTagName = (Get-IDMScopeTag -Id $ScopeTagId).DisplayName
     }
-    try {
-        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$ScopeTagId/assignments"
+
+    $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$ScopeTagId/assignments"
+
+    try {   
+        Write-Verbose ("Invoking GET API: {0}" -f $uri)
         $Result = Invoke-MgGraphRequest -Method Get -Uri $uri -ErrorAction Stop
         If($Result){
             $ResultObj = "" | Select ScopeName,ScopeId,AssignmentId,GroupId
@@ -864,9 +871,10 @@ Function Invoke-IDMScopeTagAssignment{
     $object = New-Object -TypeName PSObject
     $object | Add-Member -MemberType NoteProperty -Name 'assignments' -Value @($AutoTagObject)
     $JSON = $object | ConvertTo-Json -Depth 10
-
-   try {
-        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$ScopeTagId/assign"
+    $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$ScopeTagId/assign"
+    
+    try {    
+        Write-Verbose ("Invoking POST API: {0}" -f $uri)
         $Result = Invoke-MgGraphRequest -Method Post -Uri $uri -Body $JSON -ErrorAction Stop
         Return $Result.value.id
     }
@@ -909,20 +917,19 @@ Function Get-IDMRoleAssignmentGroups{
     $graphApiVersion = "beta"
     $Resource = "deviceManagement/roleAssignments"
 
-    try {
-        if($DisplayName){
-            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)`?`$filter=displayName eq '$DisplayName'"
-            $Result = Invoke-MgGraphRequest -Method Get -Uri $uri -ErrorAction Stop
-        }
-        elseif($Id){
-            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)`?`$filter=id eq '$Id'"
-            $Result = Invoke-MgGraphRequest -Method Get -Uri $uri -ErrorAction Stop
-        }
-        else {
-            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
-            $Result = Invoke-MgGraphRequest -Method Get -Uri $uri -ErrorAction Stop
+    if($DisplayName){
+        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)`?`$filter=displayName eq '$DisplayName'"
+    }
+    elseif($Id){
+        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)`?`$filter=id eq '$Id'"
+    }
+    else {
+        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)"
+    }
 
-        }
+    try {
+        Write-Verbose ("Invoking GET API: {0}" -f $uri)
+        $Result = Invoke-MgGraphRequest -Method Get -Uri $uri -ErrorAction Stop
         return $Result.Value
     }
     catch {
@@ -970,8 +977,10 @@ Function Invoke-IDMRoleAssignmentScopeTag{
         $object | Add-Member -MemberType NoteProperty -Name '@odata.id' -Value "$Global:GraphEndpoint/$graphApiVersion/deviceManagement/roleScopeTags('$ScopeTagId')"
         $JSON = $object | ConvertTo-Json
 
+        $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$AssignmentId/roleScopeTags/`$ref"
+
         try {
-            $uri = "$Global:GraphEndpoint/$graphApiVersion/$($Resource)/$AssignmentId/roleScopeTags/`$ref"
+            Write-Verbose ("Invoking POST API: {0}" -f $uri)
             $Null = Invoke-MgGraphRequest -Method Post -Uri $uri  -Body $JSON
         }
         catch {

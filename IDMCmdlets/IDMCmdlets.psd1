@@ -4,7 +4,7 @@
     RootModule = 'IDMCmdlets.psm1'
 
     # Version number of this module.
-    ModuleVersion = '1.0.3.4'
+    ModuleVersion = '1.0.3.5'
 
     # ID used to uniquely identify this module
     GUID = 'a8428a2b-be4c-43c7-b44c-ea20d0d04490'
@@ -65,6 +65,7 @@
     FunctionsToExport = @(
         'Add-IDMGraphAppCertAuth'
         'Connect-IDMGraphApp'
+        'Get-IDMAppProtectionPolicies'
         'Get-IDMAutopilotDevice'
         'Get-IDMAutopilotProfile'
         'Get-IDMAzureDeviceExtension'
@@ -115,8 +116,9 @@
         'Set-IDMResourceFriendlyType'
         'Set-IDMRole'
         'Split-IDMRequests'
+        'Update-IDMAppProtectionPolicyOSCondition'
         'Update-IDMAzureDynamicGroup'
-        'Update-IDMCompliancePoliciesOSVersion'
+        'Update-IDMCompliancePolicyOSVersion'
         'Update-IDMGraphApp'
         'Update-IDMRoleAssignmentGroups'
     )
